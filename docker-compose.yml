@@ -43,6 +43,8 @@ services:
       DB_HOST: postgres
       DB_PORT: "5432"
       CORS_ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      # Ambil dari .env root atau environment saat menjalankan docker compose.
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -64,6 +66,7 @@ services:
     environment:
       NODE_ENV: development
       NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api
     depends_on:
       - backend
 

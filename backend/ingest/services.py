@@ -78,12 +78,13 @@ def _mark_failed(document_id: int | None, session_id: str | None, error_message:
 
 # ── Step functions ─────────────────────────────────────────────────────────────
 
-def _copy_to_documents(file_path: Path, document_id: int | None, session_id: str | None) -> Path:
-    """Copy the uploaded file into the documents directory."""
-    dest = config.DOCUMENTS_DIR / file_path.name
+def _copy_to_documents(file_path: Path, original_filename: str, document_id: int | None, session_id: str | None) -> Path:
+    """Copy the uploaded file into the documents directory with UUID name."""
+    safe_name = file_path.name
+    dest = config.DOCUMENTS_DIR / safe_name
     if dest.resolve() != file_path.resolve():
         shutil.copy2(file_path, dest)
-        _log_ingest(document_id, "copy", f"Copied to documents/{dest.name}", session_id)
+        _log_ingest(document_id, "copy", f"Copied to documents/{dest.name} (original: {original_filename})", session_id)
     else:
         _log_ingest(document_id, "copy", f"Already in documents/{file_path.name}", session_id)
     return dest
@@ -95,7 +96,7 @@ def _load_document(file_path: Path, document_id: int | None, session_id: str | N
 
     if suffix == ".pdf":
         loader = PyPDFLoader(str(file_path))
-    elif suffix in (".docx", ".doc"):
+    elif suffix == ".docx":
         loader = Docx2txtLoader(str(file_path))
     elif suffix == ".txt":
         try:
@@ -155,8 +156,8 @@ def _embed_and_persist(
     """
     embeddings = get_embeddings()
 
-    # Embed all chunk texts in one batch
-    texts = [chunk.page_content for chunk in chunks]
+    # Embed all chunk texts in one batch with E5 passage prefix
+    texts = [f"passage: {chunk.page_content}" for chunk in chunks]
     vectors = embeddings.embed_documents(texts)
 
     with transaction.atomic():
@@ -167,15 +168,18 @@ def _embed_and_persist(
         document.path_file = str(file_path)
         document.save(update_fields=["path_file", "updated_at"])
 
-        # Bulk-create chunks with embeddings
-        chunk_objs = [
-            Chunk(
-                document=document,
-                chunk_text=chunk.page_content,
-                embedding=vector,
+        # Bulk-create chunks with embeddings and page metadata
+        chunk_objs = []
+        for chunk, vector in zip(chunks, vectors):
+            page = chunk.metadata.get("page")
+            chunk_objs.append(
+                Chunk(
+                    document=document,
+                    chunk_text=chunk.page_content,
+                    page=int(page) + 1 if page is not None else None,
+                    embedding=vector,
+                )
             )
-            for chunk, vector in zip(chunks, vectors)
-        ]
         Chunk.objects.bulk_create(chunk_objs)
 
     _log_ingest(document.id, "mysql", f"Saved {len(chunk_objs)} chunks to pgvector", session_id)
@@ -195,6 +199,7 @@ def _mark_indexed(document_id: int, session_id: str | None) -> None:
 
 def run_ingest_pipeline(
     file_path: Path,
+    original_filename: str,
     document_id: int | None = None,
     user_id: int | None = None,
     session_id: str | None = None,
@@ -206,7 +211,7 @@ def run_ingest_pipeline(
     """
     try:
         # 1. Copy file into documents dir
-        dest = _copy_to_documents(file_path, document_id, session_id)
+        dest = _copy_to_documents(file_path, original_filename, document_id, session_id)
 
         # 2. Load document
         docs = _load_document(dest, document_id, session_id)
@@ -224,7 +229,7 @@ def run_ingest_pipeline(
                 raise ValueError("user_id is required when document_id is not provided")
             document = DocumentModel.objects.create(
                 user_id=user_id,
-                document_name=dest.name,
+                document_name=original_filename,
                 path_file=str(dest),
                 file_type=dest.suffix.lstrip(".").lower(),
                 size=dest.stat().st_size,

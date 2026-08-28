@@ -12,6 +12,7 @@ from django.conf import settings
 from django.core.files.uploadedfile import UploadedFile
 from rest_framework import status
 from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -19,7 +20,7 @@ from .services import run_ingest_pipeline
 
 logger = logging.getLogger(__name__)
 
-ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx", ".txt"}
+ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt"}
 MAX_SIZE_KB = 102400  # 100 MB
 
 
@@ -31,9 +32,17 @@ class IngestUploadView(APIView):
     Optionally accepts `document_id` to re-ingest an existing document.
     """
 
+    authentication_classes = [*APIView.authentication_classes]
+    permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request, *args, **kwargs):
+        if not (request.user.is_authenticated and request.user.role == "admin"):
+            return Response(
+                {"detail": "Anda tidak memiliki izin untuk mengunggah dokumen."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         file: UploadedFile | None = request.FILES.get("document")
         if file is None:
             return Response(
@@ -67,10 +76,11 @@ class IngestUploadView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-        # Save uploaded file to a temp location
+        # Save uploaded file to a temp location with UUID filename
         upload_dir = Path(settings.MEDIA_ROOT) / "uploads"
         upload_dir.mkdir(parents=True, exist_ok=True)
-        dest_path = upload_dir / file.name
+        safe_filename = f"{uuid.uuid4()}{suffix}"
+        dest_path = upload_dir / safe_filename
         with open(dest_path, "wb+") as dest:
             for chunk in file.chunks():
                 dest.write(chunk)
@@ -80,6 +90,7 @@ class IngestUploadView(APIView):
         try:
             result = run_ingest_pipeline(
                 file_path=dest_path,
+                original_filename=file.name,
                 document_id=document_id,
                 user_id=request.user.id if request.user.is_authenticated else None,
                 session_id=session_id,

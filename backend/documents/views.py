@@ -17,8 +17,8 @@ class DocumentViewSet(viewsets.ModelViewSet):
         """Filter dokumen berdasarkan user yang sedang login."""
         user = self.request.user
         if user.role == "admin":
-            return Document.objects.all()
-        return Document.objects.filter(user=user)
+            return Document.objects.filter(deleted_at__isnull=True)
+        return Document.objects.filter(user=user, deleted_at__isnull=True)
 
     def perform_create(self, serializer):
         """Set user_id otomatis dari user yang sedang login."""
@@ -28,7 +28,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
     def chunks(self, request, pk=None):
         """Mengembalikan daftar chunk untuk dokumen tertentu."""
         document = self.get_object()
-        chunks = Chunk.objects.filter(document=document)
+        chunks = Chunk.objects.filter(document=document, deleted_at__isnull=True)
         serializer = ChunkSerializer(chunks, many=True)
         return Response(serializer.data)
 
@@ -52,8 +52,8 @@ class ChunkViewSet(viewsets.ReadOnlyModelViewSet):
         """Filter chunk berdasarkan dokumen milik user."""
         user = self.request.user
         if user.role == "admin":
-            return Chunk.objects.all()
-        return Chunk.objects.filter(document__user=user)
+            return Chunk.objects.filter(deleted_at__isnull=True, document__deleted_at__isnull=True)
+        return Chunk.objects.filter(document__user=user, deleted_at__isnull=True, document__deleted_at__isnull=True)
 
 
 class IngestLogViewSet(viewsets.ReadOnlyModelViewSet):
@@ -67,5 +67,5 @@ class IngestLogViewSet(viewsets.ReadOnlyModelViewSet):
         """Filter log berdasarkan dokumen milik user."""
         user = self.request.user
         if user.role == "admin":
-            return IngestLog.objects.all()
-        return IngestLog.objects.filter(document__user=user)
+            return IngestLog.objects.filter(document__deleted_at__isnull=True)
+        return IngestLog.objects.filter(document__user=user, document__deleted_at__isnull=True)

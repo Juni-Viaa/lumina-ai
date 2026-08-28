@@ -15,7 +15,7 @@ SECRET_KEY = os.environ.get(
     "django-insecure-w@)$18!m6_vhuaxt8wnkua_ec_&&@el^qnza^qi8&hzx6s4w&9",
 )
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = [host for host in os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,testserver").split(",") if host or host == "testserver"]
 
 # ── Database ────────────────────────────────────────────────────────────────
 DATABASES = {
@@ -30,7 +30,14 @@ DATABASES = {
 }
 
 # ── CORS ────────────────────────────────────────────────────────────────────
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOWED_ORIGINS = [
+    origin
+    for origin in os.environ.get(
+        "CORS_ALLOWED_ORIGINS",
+        "http://localhost:3000,http://127.0.0.1:3000",
+    ).split(",")
+    if origin
+]
 
 CORS_ALLOW_CREDENTIALS = True
 

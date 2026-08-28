@@ -13,7 +13,7 @@ DEBUG = False
 
 SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]  # Wajib di-set di production
 
-ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",")
+ALLOWED_HOSTS = [host for host in os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",") if host]
 
 # ── Security headers ────────────────────────────────────────────────────────
 SECURE_SSL_REDIRECT = os.environ.get("DJANGO_SECURE_SSL_REDIRECT", "True") == "True"
@@ -40,7 +40,7 @@ DATABASES = {
 }
 
 # ── CORS ────────────────────────────────────────────────────────────────────
-CORS_ALLOWED_ORIGINS = os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",")
+CORS_ALLOWED_ORIGINS = [origin for origin in os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",") if origin]
 
 CORS_ALLOW_CREDENTIALS = True
 

@@ -18,6 +18,9 @@ class UserManager(BaseUserManager):
     def create_superuser(self, email, password=None, **extra_fields):
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
+        # Superuser otomatis ber-role admin agar menu khusus admin (mis. Upload
+        # Dokumen di frontend) aktif tanpa pengaturan manual tambahan.
+        extra_fields.setdefault("role", self.model.Role.ADMIN)
         return self.create_user(email, password, **extra_fields)
 
 
@@ -79,6 +82,7 @@ class Document(models.Model):
 
     class Meta:
         db_table = "documents"
+        ordering = ["-created_at"]
 
     def __str__(self):
         return self.document_name
@@ -94,6 +98,7 @@ class Chunk(models.Model):
         db_column="document_id",
     )
     chunk_text = models.TextField()
+    page = models.IntegerField(null=True, blank=True)
     # 1024 dimensi -> model 'intfloat/multilingual-e5-large'
     embedding = VectorField(dimensions=1024, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -104,6 +109,7 @@ class Chunk(models.Model):
         db_table = "chunks"
         indexes = [
             models.Index(fields=["document"]),
+            models.Index(fields=["page"]),
         ]
 
     def __str__(self):
@@ -182,6 +188,8 @@ class History(models.Model):
         on_delete=models.CASCADE,
         related_name="histories",
         db_column="answer_id",
+        null=True,
+        blank=True,
     )
 
     class Meta:
@@ -199,6 +207,8 @@ class IngestLog(models.Model):
         on_delete=models.CASCADE,
         related_name="ingest_logs",
         db_column="document_id",
+        null=True,
+        blank=True,
     )
     session_id = models.UUIDField(null=True, blank=True)
     step = models.CharField(max_length=255)
