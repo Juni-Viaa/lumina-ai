@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 320" role="img" aria-label="Lumina logo — flame-leaf L in deep navy premium gradient">
+  <defs>
+    <linearGradient id="rf3top" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="50%" stop-color="#2563EB"/>
+      <stop offset="100%" stop-color="#1E40AF"/>
+    </linearGradient>
+    <linearGradient id="rf3mid" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E40AF"/>
+      <stop offset="100%" stop-color="#1E3A8A"/>
+    </linearGradient>
+    <linearGradient id="rf3bot" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E3A8A"/>
+      <stop offset="100%" stop-color="#172554"/>
+    </linearGradient>
+    <radialGradient id="rf3glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#3B82F6" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#3B82F6" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <g transform="translate(100,160)">
+    <circle cx="0" cy="0" r="150" fill="url(#rf3glow)"/>
+    <path d="M -8 -130 C 30 -120, 60 -90, 75 -50 C 80 -20, 70 5, 50 15 C 30 18, 5 5, -10 -20 C -25 -45, -30 -85, -25 -115 C -20 -130, -14 -132, -8 -130 Z" fill="url(#rf3top)"/>
+    <path d="M 0 -100 C 20 -95, 40 -75, 50 -45" fill="none" stroke="#60A5FA" stroke-width="1.2" opacity="0.5"/>
+    <path d="M -25 -80 C 30 -75, 80 -50, 90 -10 C 92 20, 80 50, 55 60 C 25 65, -10 50, -30 20 C -50 -10, -55 -50, -45 -75 C -40 -82, -32 -82, -25 -80 Z" fill="url(#rf3mid)"/>
+    <path d="M -10 -50 C 20 -45, 50 -25, 70 0" fill="none" stroke="#3B82F6" stroke-width="1" opacity="0.5"/>
+    <path d="M -45 -10 C -10 0, 30 10, 45 30 C 50 50, 35 70, 15 75 C -10 80, -45 75, -65 50 C -80 25, -80 5, -70 -10 C -62 -18, -52 -14, -45 -10 Z" fill="url(#rf3bot)"/>
+    <path d="M -50 30 Q -20 50, 20 55" fill="none" stroke="#1E40AF" stroke-width="1" opacity="0.6"/>
+  </g>
+</svg>

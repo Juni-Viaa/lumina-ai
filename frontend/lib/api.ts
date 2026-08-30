@@ -35,10 +35,6 @@ interface ApiErrorPayload {
   [field: string]: unknown;
 }
 
-/**
- * Konversi payload error DRF (field errors / detail) menjadi pesan
- * Bahasa Indonesia yang bisa langsung ditampilkan ke user.
- */
 function formatApiError(payload: ApiErrorPayload | null, fallback: string): string {
   if (!payload) return fallback;
   if (typeof payload.detail === "string" && payload.detail) return payload.detail;
@@ -82,9 +78,7 @@ async function request<T>(
   );
 
   const controller = new AbortController();
-  const timeoutId = timeout
-    ? setTimeout(() => controller.abort(), timeout)
-    : undefined;
+  const timeoutId = timeout ?? DEFAULT_TIMEOUT_MS ? setTimeout(() => controller.abort(), timeout ?? DEFAULT_TIMEOUT_MS) : undefined;
 
   try {
     const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -100,7 +94,6 @@ async function request<T>(
     });
 
     if (response.status === 401) {
-      // Global 401 handling: clear auth and reload page
       clearAuth();
       window.location.href = "/login";
       throw new ApiError("Sesi login telah berakhir.", 401);
@@ -131,13 +124,14 @@ async function request<T>(
 }
 
 export const api = {
-  get: <T>(path: string) => request<T>(path),
+  get: <T>(path: string, options?: RequestOptions) => request<T>(path, options),
   post: <T>(path: string, body: unknown) =>
     request<T>(path, { method: "POST", body }),
   patch: <T>(path: string, body: unknown) =>
     request<T>(path, { method: "PATCH", body }),
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
-  /** Upload a file using multipart/form-data (Authorization tetap disertakan). */
   uploadFile: <T>(path: string, formData: FormData) =>
     request<T>(path, { method: "POST", body: formData, isFormData: true }),
 };
+
+export type { RequestOptions };

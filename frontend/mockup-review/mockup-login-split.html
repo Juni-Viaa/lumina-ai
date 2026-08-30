@@ -1,0 +1,620 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lumina — Mockup Login Split-Screen (Glassmorphism Blue & White)</title>
+<style>
+  /* ============================================================
+     Lumina — Split-Screen Login
+     Layout: Kiri = Branding/Visual (45%) | Kanan = Form (55%)
+     Ukuran: Full viewport (100vh × 100vw), tidak ada scroll
+     ============================================================ */
+  :root {
+    --bg-sky-50:  #EAF4FF;
+    --bg-sky-200: #BFD9F5;
+    --bg-sky-400: #7CB1E5;
+
+    --blue-50:  #F0F7FF;
+    --blue-100: #D9E8FB;
+    --blue-500: #3B7EE0;
+    --blue-600: #1E5FBF;
+    --blue-700: #0F3F95;
+    --blue-800: #082B6A;
+
+    --ink-900: #0A2540;
+    --ink-700: #23456B;
+    --ink-500: #5A7592;
+    --ink-300: #94A8C0;
+
+    --white:   #FFFFFF;
+    --accent-cyan: #52B6FF;
+    --accent-cyan-soft: #B8DDFF;
+
+    --success: #18B487;
+    --warning: #E6A93B;
+    --danger:  #E2506A;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+  body {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    color: var(--ink-900);
+    background: linear-gradient(180deg, var(--bg-sky-50) 0%, var(--bg-sky-200) 100%);
+  }
+
+  /* ============================================
+     SPLIT-SCREEN CONTAINER
+     ============================================ */
+  .split-screen {
+    display: grid;
+    grid-template-columns: 0.85fr 1.15fr;
+    height: 100vh;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  /* ============================================
+     LEFT PANEL — BRANDING & VISUAL
+     ============================================ */
+  .left-panel {
+    position: relative;
+    background:
+      radial-gradient(60% 70% at 20% 30%, rgba(82,182,255,0.5) 0%, rgba(82,182,255,0) 60%),
+      radial-gradient(50% 60% at 80% 70%, rgba(30,95,191,0.4) 0%, rgba(30,95,191,0) 65%),
+      linear-gradient(135deg, var(--blue-700) 0%, var(--blue-800) 60%, #061E4D 100%);
+    color: var(--white);
+    padding: 32px 36px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    overflow: hidden;
+  }
+
+  /* Decorative orbs in left panel */
+  .left-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(60px);
+    pointer-events: none;
+  }
+  .left-orb-1 { width: 220px; height: 220px; background: rgba(82,182,255,0.55); top: -60px; right: -50px; }
+  .left-orb-2 { width: 180px; height: 180px; background: rgba(124,177,229,0.45); bottom: -30px; left: -30px; }
+  .left-orb-3 { width: 120px; height: 120px; background: rgba(255,255,255,0.12); top: 45%; right: 20%; }
+
+  /* Subtle grid pattern */
+  .left-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+    background-size: 32px 32px;
+    pointer-events: none;
+  }
+
+  /* Brand area */
+  .left-brand {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .brand-mark {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.95);
+    border: 1px solid rgba(255,255,255,0.4);
+    box-shadow: 0 6px 18px -4px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.6);
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+  }
+  .brand-mark img {
+    width: 26px;
+    height: 26px;
+    object-fit: contain;
+  }
+  .brand-text {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+
+  /* Center hero content */
+  .left-hero {
+    position: relative;
+    z-index: 2;
+    max-width: 420px;
+  }
+  .hero-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    backdrop-filter: blur(10px);
+  }
+  .hero-eyebrow .dot {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--accent-cyan);
+    box-shadow: 0 0 8px var(--accent-cyan);
+  }
+  .hero-title {
+    font-size: 30px;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    margin: 0 0 12px;
+  }
+  .hero-title em {
+    font-style: normal;
+    background: linear-gradient(120deg, var(--accent-cyan) 0%, #A6D2FF 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .hero-desc {
+    font-size: 13px;
+    line-height: 1.55;
+    color: rgba(255,255,255,0.75);
+    margin: 0 0 22px;
+    max-width: 400px;
+  }
+
+  /* Feature pills */
+  .hero-features {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .feature {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: rgba(255,255,255,0.85);
+  }
+  .feature-icon {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    border-radius: 8px;
+    background: rgba(82,182,255,0.18);
+    border: 1px solid rgba(82,182,255,0.3);
+    display: grid;
+    place-items: center;
+    color: var(--accent-cyan);
+  }
+  .feature-icon svg { width: 14px; height: 14px; }
+
+  /* Left footer (testimonial / copyright) */
+  .left-foot {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    color: rgba(255,255,255,0.55);
+  }
+  .left-foot .meta { display: flex; align-items: center; gap: 8px; }
+
+  /* ============================================
+     RIGHT PANEL — LOGIN FORM
+     ============================================ */
+  .right-panel {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 32px;
+    background:
+      radial-gradient(45% 40% at 0% 50%, rgba(124,177,229,0.3) 0%, rgba(124,177,229,0) 70%),
+      radial-gradient(40% 35% at 100% 100%, rgba(82,182,255,0.18) 0%, rgba(82,182,255,0) 70%);
+    overflow: hidden;
+  }
+
+  /* Decorative orbs in right panel */
+  .right-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    pointer-events: none;
+  }
+  .right-orb-1 { width: 240px; height: 240px; background: rgba(124,177,229,0.4); top: -80px; right: -80px; }
+  .right-orb-2 { width: 180px; height: 180px; background: rgba(82,182,255,0.3); bottom: -60px; left: -60px; }
+
+  .form-wrap {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    max-width: 380px;
+  }
+
+  /* Top action bar */
+  .top-action {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 18px;
+  }
+  .top-action .greeting {
+    font-size: 11px;
+    color: var(--ink-500);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 500;
+  }
+  .top-action .lang-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    background: rgba(255,255,255,0.55);
+    border: 1px solid rgba(255,255,255,0.6);
+    border-radius: 999px;
+    font-size: 11px;
+    color: var(--ink-700);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
+    cursor: pointer;
+  }
+
+  /* Form card */
+  .form-card {
+    background: rgba(255,255,255,0.62);
+    border: 1px solid rgba(255,255,255,0.7);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.9),
+      0 16px 40px -8px rgba(15,63,149,0.18);
+    backdrop-filter: blur(30px) saturate(150%);
+    -webkit-backdrop-filter: blur(30px) saturate(150%);
+    border-radius: 20px;
+    padding: 22px 22px;
+  }
+
+  .form-header { margin-bottom: 16px; text-align: center; }
+  .form-header h1 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--ink-900);
+    margin: 0 0 4px;
+    letter-spacing: -0.02em;
+  }
+  .form-header p {
+    font-size: 12px;
+    color: var(--ink-500);
+    margin: 0;
+  }
+
+  /* Field */
+  .field { margin-bottom: 12px; }
+  .field-label {
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-500);
+    margin: 0 0 5px 4px;
+  }
+  .input-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: rgba(255,255,255,0.6);
+    border: 1px solid rgba(255,255,255,0.7);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.85), 0 2px 6px rgba(15,63,149,0.06);
+    backdrop-filter: blur(12px);
+    border-radius: 12px;
+    transition: border-color 180ms, box-shadow 180ms;
+  }
+  .input-row:focus-within {
+    border-color: var(--accent-cyan);
+    background: rgba(255,255,255,0.85);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.95),
+      0 0 0 4px rgba(82,182,255,0.18),
+      0 0 0 1px var(--accent-cyan);
+  }
+  .input-row input {
+    flex: 1;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    font: inherit;
+    font-size: 13px;
+    color: var(--ink-900);
+  }
+  .input-row input::placeholder { color: var(--ink-300); }
+  .input-row .icon {
+    width: 16px; height: 16px;
+    color: var(--ink-500);
+    flex-shrink: 0;
+  }
+  .toggle-eye {
+    background: none; border: 0; cursor: pointer;
+    color: var(--ink-300); padding: 2px;
+    transition: color 150ms;
+  }
+  .toggle-eye:hover { color: var(--ink-700); }
+
+  .row-between {
+    display: flex; align-items: center; justify-content: space-between;
+    margin: 4px 4px 14px;
+  }
+  .checkbox { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-700); cursor: pointer; }
+  .checkbox input {
+    appearance: none; width: 15px; height: 15px; border-radius: 4px;
+    background: rgba(255,255,255,0.7); border: 1px solid rgba(15,63,149,0.25);
+    display: grid; place-items: center; cursor: pointer;
+  }
+  .checkbox input:checked { background: var(--blue-600); border-color: var(--blue-600); }
+  .checkbox input:checked::after {
+    content: ""; width: 8px; height: 8px; background: white;
+    clip-path: polygon(14% 44%, 0 60%, 50% 100%, 100% 16%, 80% 0, 43% 62%);
+  }
+  .link-blue {
+    color: var(--blue-600); font-size: 12px; text-decoration: none; font-weight: 500;
+  }
+  .link-blue:hover { text-decoration: underline; }
+
+  /* Primary button */
+  .btn-primary {
+    width: 100%;
+    padding: 11px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--white);
+    background: linear-gradient(180deg, #2C6FE0 0%, var(--blue-700) 100%);
+    border: 1px solid rgba(255,255,255,0.25);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.3),
+      0 6px 16px -4px rgba(30,95,191,0.5);
+    border-radius: 12px;
+    transition: transform 120ms ease, box-shadow 200ms ease;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.3), 0 10px 20px -4px rgba(30,95,191,0.55);
+  }
+  .btn-primary:active { transform: scale(0.98); }
+
+  /* Divider */
+  .divider {
+    display: flex; align-items: center; gap: 10px;
+    margin: 14px 0;
+    color: var(--ink-500);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .divider::before, .divider::after {
+    content: ""; flex: 1; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(15,63,149,0.2), transparent);
+  }
+
+  /* Social buttons */
+  .social-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .btn-social {
+    padding: 9px;
+    background: rgba(255,255,255,0.5);
+    border: 1px solid rgba(255,255,255,0.6);
+    border-radius: 11px;
+    font-size: 12px;
+    color: var(--ink-700);
+    cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
+    transition: background 150ms;
+  }
+  .btn-social:hover { background: rgba(255,255,255,0.75); }
+  .btn-social svg { width: 14px; height: 14px; }
+
+  /* Foot link */
+  .auth-foot {
+    text-align: center;
+    font-size: 12px;
+    color: var(--ink-700);
+    margin-top: 14px;
+  }
+
+  /* Alert */
+  .alert {
+    background: rgba(226,80,106,0.12);
+    border: 1px solid rgba(226,80,106,0.35);
+    color: #A4223A;
+    padding: 8px 12px; border-radius: 10px; font-size: 12px;
+    margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .alert svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+  /* ============================================
+     RESPONSIVE
+     ============================================ */
+  @media (max-width: 960px) {
+    .split-screen { grid-template-columns: 1fr; }
+    .left-panel { display: none; }
+    .right-panel { padding: 32px 24px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="split-screen">
+
+  <!-- ==========================================
+       LEFT PANEL — BRANDING & VISUAL
+       ========================================== -->
+  <aside class="left-panel">
+    <div class="left-grid"></div>
+    <div class="left-orb left-orb-1"></div>
+    <div class="left-orb left-orb-2"></div>
+    <div class="left-orb left-orb-3"></div>
+
+    <!-- Brand top -->
+    <div class="left-brand">
+      <div class="brand-mark">
+        <img src="/images/icons/Logo.png" alt="Lumina" />
+      </div>
+      <div class="brand-text">Lumina</div>
+    </div>
+
+    <!-- Hero content -->
+    <div class="left-hero">
+      <div class="hero-eyebrow">
+        <span class="dot"></span>
+        <span>Asisten Akademik Cerdas</span>
+      </div>
+      <h2 class="hero-title">
+        Temukan jawaban<br />
+        dari <em>dokumenmu</em>,<br />
+        dalam hitungan detik.
+      </h2>
+      <p class="hero-desc">
+        Lumina menggunakan Retrieval‑Augmented Generation untuk menjawab
+        pertanyaan, membandingkan dokumen, dan membuat soal otomatis.
+      </p>
+
+      <div class="hero-features">
+        <div class="feature">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <span>Analisis dokumen PDF, DOCX, dan TXT</span>
+        </div>
+        <div class="feature">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+            </svg>
+          </div>
+          <span>Tanya jawab berbasis konteks</span>
+        </div>
+        <div class="feature">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+            </svg>
+          </div>
+          <span>Pembuatan soal otomatis (Bloom's Taxonomy)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer bottom -->
+    <div class="left-foot">
+      <div class="meta">
+        <span>&copy; 2026 Lumina — PBL IF‑4MD‑08</span>
+      </div>
+      <div>v1.0.0</div>
+    </div>
+  </aside>
+
+  <!-- ==========================================
+       RIGHT PANEL — LOGIN FORM
+       ========================================== -->
+  <main class="right-panel">
+    <div class="right-orb right-orb-1"></div>
+    <div class="right-orb right-orb-2"></div>
+
+    <div class="form-wrap">
+      <!-- Top action row -->
+      <div class="top-action">
+        <span class="greeting">Selamat Datang Kembali</span>
+        <span class="lang-pill">
+          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9 9 0 100-18 9 9 0 000 18zm0 0c2.5-3 4-6.5 4-9s-1.5-6-4-9m0 18c-2.5-3-4-6.5-4-9s1.5-6 4-9M3 12h18" /></svg>
+          ID
+        </span>
+      </div>
+
+      <!-- Form card -->
+      <div class="form-card">
+        <div class="form-header">
+          <h1>Masuk ke Akunmu</h1>
+          <p>Lanjutkan perjalanan belajar dengan dokumenmu</p>
+        </div>
+
+        <div class="alert">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
+          <span>Email atau kata sandi salah. Coba lagi.</span>
+        </div>
+
+        <form onsubmit="event.preventDefault();">
+          <div class="field">
+            <label class="field-label" for="email">Email atau Nama Pengguna</label>
+            <div class="input-row">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+              </svg>
+              <input id="email" type="text" placeholder="nama@email.com" autocomplete="email" />
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="password">Kata Sandi</label>
+            <div class="input-row">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+              </svg>
+              <input id="password" type="password" placeholder="Masukkan kata sandi" autocomplete="current-password" />
+              <button type="button" class="toggle-eye" aria-label="Toggle">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="row-between">
+            <label class="checkbox"><input type="checkbox" checked /> Ingat saya</label>
+            <a href="#" class="link-blue">Lupa sandi?</a>
+          </div>
+
+          <button type="submit" class="btn-primary">
+            Masuk
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+          </button>
+
+          <div class="divider">atau lanjut dengan</div>
+
+          <div class="social-row">
+            <button type="button" class="btn-social">
+              <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09 0-.73.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+              Google
+            </button>
+            <button type="button" class="btn-social">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58v-2.17c-3.34.73-4.04-1.41-4.04-1.41-.55-1.39-1.34-1.76-1.34-1.76-1.09-.74.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.84 2.81 1.31 3.5 1 .1-.78.42-1.31.76-1.61-2.66-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.13-.3-.54-1.52.11-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 016 0c2.3-1.55 3.3-1.23 3.3-1.23.65 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.62-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58A12 12 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+              GitHub
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div class="auth-foot">
+        Belum punya akun? <a href="#" class="link-blue">Daftar sekarang</a>
+      </div>
+    </div>
+  </main>
+
+</div>
+
+</body>
+</html>

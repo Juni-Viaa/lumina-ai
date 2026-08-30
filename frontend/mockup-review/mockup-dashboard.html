@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lumina — Mockup Dashboard / Chat (Glassmorphism Blue & White)</title>
+<style>
+  :root {
+    --bg-sky-50: #EAF4FF; --bg-sky-200: #BFD9F5; --bg-sky-400: #7CB1E5;
+    --blue-50: #F0F7FF; --blue-600: #1E5FBF; --blue-700: #0F3F95;
+    --ink-900: #0A2540; --ink-700: #23456B; --ink-500: #5A7592;
+    --white: #FFFFFF; --accent-cyan: #52B6FF;
+    --success: #18B487; --warning: #E6A93B; --danger: #E2506A;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    font-family: "Space Grotesk", system-ui, sans-serif; color: var(--ink-900);
+    background:
+      radial-gradient(55% 45% at 10% 12%, rgba(82,182,255,0.42) 0%, rgba(82,182,255,0) 60%),
+      radial-gradient(45% 40% at 92% 88%, rgba(124,177,229,0.5) 0%, rgba(124,177,229,0) 65%),
+      linear-gradient(180deg, var(--bg-sky-50) 0%, var(--bg-sky-200) 55%, var(--bg-sky-400) 100%);
+    background-attachment: fixed;
+  }
+  .orb { position: fixed; border-radius: 9999px; filter: blur(80px); opacity: 0.55; z-index: 0; pointer-events: none; }
+  .orb-a { width: 360px; height: 360px; background: #A6D2FF; top: -100px; left: -60px; }
+  .orb-b { width: 420px; height: 420px; background: #6FA8E6; bottom: -120px; right: -80px; }
+  .orb-c { width: 240px; height: 240px; background: #C8E4FF; top: 45%; left: 50%; transform: translate(-50%, -50%); opacity: 0.4; }
+
+  /* Glass system */
+  .glass-floating { background: rgba(255,255,255,0.55); border: 1px solid rgba(255,255,255,0.65); box-shadow: inset 0 1px 0 rgba(255,255,255,0.85), 0 16px 40px -8px rgba(15,63,149,0.18); backdrop-filter: blur(28px) saturate(140%); -webkit-backdrop-filter: blur(28px) saturate(140%); border-radius: 24px; }
+  .glass-card { background: rgba(255,255,255,0.5); border: 1px solid rgba(255,255,255,0.6); box-shadow: inset 0 1px 0 rgba(255,255,255,0.7), 0 8px 24px -6px rgba(15,63,149,0.14); backdrop-filter: blur(20px) saturate(135%); -webkit-backdrop-filter: blur(20px) saturate(135%); border-radius: 20px; }
+  .glass-input { background: rgba(255,255,255,0.55); border: 1px solid rgba(255,255,255,0.6); box-shadow: inset 0 1px 0 rgba(255,255,255,0.85), 0 2px 6px rgba(15,63,149,0.06); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-radius: 18px; }
+  .glass-button { background: linear-gradient(180deg, #2C6FE0 0%, #0F3F95 100%); border: 1px solid rgba(255,255,255,0.25); box-shadow: inset 0 1px 0 rgba(255,255,255,0.3), 0 8px 20px -6px rgba(30,95,191,0.55); color: var(--white); border-radius: 14px; cursor: pointer; transition: transform 120ms ease, box-shadow 200ms ease; }
+  .glass-button:hover { transform: translateY(-1px); }
+  .glass-button:active { transform: scale(0.96); }
+  .glass-pill { background: rgba(255,255,255,0.55); border: 1px solid rgba(255,255,255,0.6); box-shadow: inset 0 1px 0 rgba(255,255,255,0.8); backdrop-filter: blur(10px); border-radius: 999px; }
+
+  /* App layout */
+  .app {
+    position: relative; z-index: 1; height: 100vh;
+  .sidebar {
+    padding: 16px 12px; display: flex; flex-direction: column; gap: 6px;
+    overflow-y: auto; height: 100%;
+  }
+    display: grid; grid-template-columns: 248px 1fr; gap: 14px; padding: 14px;
+  }
+  .sidebar {
+    padding: 16px 12px; display: flex; flex-direction: column; gap: 6px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin-bottom: 12px; }
+  .brand-mark { width: 32px; height: 32px; border-radius: 9px; background: linear-gradient(135deg, #2C6FE0 0%, #52B6FF 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,0.4); }
+  .brand-name { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; color: var(--ink-900); }
+
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; color: var(--ink-700); font-size: 14px; cursor: pointer; transition: background 150ms ease; }
+  .nav-item:hover { background: rgba(255,255,255,0.5); }
+  .nav-item.active { background: rgba(255,255,255,0.75); box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 4px 10px -4px rgba(15,63,149,0.18); color: var(--ink-900); }
+  .nav-item .icon { width: 18px; height: 18px; color: var(--blue-600); flex-shrink: 0; }
+
+  .nav-section-title { font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-500); padding: 14px 12px 4px; }
+  .history-item { padding: 8px 12px 8px 40px; font-size: 13px; color: var(--ink-700); border-radius: 8px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .history-item:hover { background: rgba(255,255,255,0.5); color: var(--ink-900); }
+  .sidebar-foot { margin-top: auto; padding-top: 12px; border-top: 1px solid rgba(15,63,149,0.08); }
+
+  /* Main column */
+  .main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; }
+  .topbar-title { font-size: 16px; font-weight: 600; color: var(--ink-900); }
+  .topbar-meta { font-size: 12px; color: var(--ink-500); margin-top: 2px; }
+  .profile { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: var(--blue-600); }
+  .profile svg { width: 22px; height: 22px; }
+
+  /* Chat panel */
+  .chat { flex: 1; display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+  .chat-head { padding: 18px 22px; border-bottom: 1px solid rgba(15,63,149,0.06); display: flex; align-items: center; justify-content: space-between; }
+  .chat-head h1 { font-size: 18px; font-weight: 600; margin: 0; color: var(--ink-900); }
+  .chat-head .doc-info { font-size: 12px; color: var(--ink-500); }
+
+  .chat-body { flex: 1; overflow-y: auto; padding: 22px; display: flex; flex-direction: column; gap: 18px; }
+
+  .empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 14px; }
+  .empty-orb { width: 80px; height: 80px; border-radius: 28px; background: linear-gradient(135deg, #2C6FE0 0%, #52B6FF 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 12px 30px -8px rgba(30,95,191,0.5); display: grid; place-items: center; color: white; font-size: 32px; font-weight: 700; }
+  .empty h2 { font-size: 22px; font-weight: 600; margin: 0; color: var(--ink-900); letter-spacing: -0.01em; }
+  .empty p { font-size: 14px; color: var(--ink-700); margin: 0; max-width: 420px; line-height: 1.6; }
+  .suggestions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px; }
+  .chip { font-size: 13px; color: var(--ink-700); padding: 10px 16px; cursor: pointer; transition: background 150ms; }
+  .chip:hover { background: rgba(255,255,255,0.7); }
+
+  /* Messages */
+  .msg { display: flex; gap: 10px; max-width: 720px; }
+  .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+  .avatar { width: 32px; height: 32px; border-radius: 10px; background: rgba(255,255,255,0.7); border: 1px solid rgba(255,255,255,0.8); box-shadow: inset 0 1px 0 rgba(255,255,255,0.9); display: grid; place-items: center; color: var(--blue-600); flex-shrink: 0; }
+  .avatar.user { background: linear-gradient(135deg, #2C6FE0 0%, #0F3F95 100%); color: white; }
+  .bubble { padding: 14px 18px; font-size: 14px; line-height: 1.6; }
+  .msg.user .bubble { background: rgba(255,255,255,0.7); color: var(--ink-900); border-top-right-radius: 4px; }
+  .msg.assistant .bubble { background: rgba(255,255,255,0.55); color: var(--ink-900); border-top-left-radius: 4px; }
+  .sources { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .src { font-size: 11px; color: var(--blue-700); padding: 4px 10px; }
+  .response-meta { margin-top: 8px; font-size: 10px; color: var(--ink-500); }
+
+  /* Typing */
+  .typing { display: flex; gap: 10px; max-width: 720px; }
+  .dots { display: inline-flex; align-items: center; gap: 4px; padding: 8px 14px; }
+  .dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-500); animation: bounce 1.2s infinite; }
+  .dots span:nth-child(2) { animation-delay: 0.15s; }
+  .dots span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 1; } }
+
+  /* Composer */
+  .composer { padding: 16px 22px 18px; border-top: 1px solid rgba(15,63,149,0.06); }
+  .composer-row { display: flex; gap: 10px; align-items: flex-end; padding: 6px 6px 6px 18px; }
+  .composer textarea { flex: 1; border: 0; outline: 0; background: transparent; resize: none; padding: 12px 0; font: inherit; color: var(--ink-900); font-size: 15px; }
+  .composer textarea::placeholder { color: var(--ink-500); }
+  .send { width: 48px; height: 48px; display: grid; place-items: center; flex-shrink: 0; }
+  .send svg { width: 20px; height: 20px; }
+  .composer-hint { text-align: center; font-size: 11px; color: var(--ink-500); margin-top: 8px; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(15,63,149,0.2); border-radius: 4px; }
+</style>
+</head>
+<body>
+  <div class="orb orb-a"></div>
+  <div class="orb orb-b"></div>
+  <div class="orb orb-c"></div>
+
+  <div class="app">
+    <!-- SIDEBAR -->
+    <aside class="sidebar glass-floating">
+      <div class="brand">
+        <div class="brand-mark"></div>
+        <span class="brand-name">Lumina</span>
+      </div>
+
+      <div class="nav-item active">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+        Chat Baru
+      </div>
+      <div class="nav-item">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+        Upload Dokumen
+      </div>
+
+      <div class="nav-section-title">Riwayat</div>
+      <div class="history-item">Apa itu RAG?</div>
+      <div class="history-item">Perbandingan dokumen A dan B</div>
+      <div class="history-item">Soal Bloom level C4</div>
+      <div class="history-item">Ringkasan modul 3</div>
+      <div class="history-item">Definisi embedding</div>
+
+      <div class="sidebar-foot">
+        <div class="nav-item">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" /></svg>
+          Logout
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN COLUMN -->
+    <div class="main">
+      <header class="topbar glass-floating">
+        <div>
+          <div class="topbar-title">Selamat datang, Aulia</div>
+          <div class="topbar-meta">3 dokumen siap · Modul-IF-2024.pdf, Slide-RAG.pdf, Soal-Latihan.pdf</div>
+        </div>
+        <div class="profile glass-card" title="Profile">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" /></svg>
+        </div>
+      </header>
+
+      <section class="chat glass-floating">
+        <div class="chat-head">
+          <div>
+            <h1>Chat</h1>
+            <div class="doc-info">3 dokumen terindeks</div>
+          </div>
+        </div>
+
+        <div class="chat-body">
+          <!-- Empty state -->
+          <div class="empty">
+            <div class="empty-orb">L</div>
+            <h2>Halo, saya Lumina</h2>
+            <p>Asisten akademik yang menjawab pertanyaan berdasarkan dokumen yang sudah diindeks. Ajukan pertanyaan dan saya akan menjawabnya secara terstruktur dengan sumber.</p>
+            <div class="suggestions">
+              <div class="chip glass-pill">Jelaskan konsep RAG</div>
+              <div class="chip glass-pill">Buat 5 soal Bloom C4</div>
+              <div class="chip glass-pill">Bandingkan dua laporan</div>
+            </div>
+          </div>
+
+          <!-- Example user message -->
+          <div class="msg user">
+            <div class="bubble glass-card">Apa itu RAG dan bagaimana cara kerjanya di Lumina?</div>
+            <div class="avatar user">A</div>
+          </div>
+
+          <!-- Example assistant message -->
+          <div class="msg assistant">
+            <div class="avatar">
+              <div class="brand-mark" style="width:20px;height:20px;border-radius:5px;"></div>
+            </div>
+            <div class="bubble glass-card">
+              <strong>RAG (Retrieval-Augmented Generation)</strong> adalah teknik yang menggabungkan pencarian dokumen dengan generasi teks. Di Lumina, alurnya:
+              <ol style="margin:8px 0 0;padding-left:18px;color:var(--ink-700);">
+                <li>Pertanyaan diubah menjadi embedding vektor.</li>
+                <li>Sistem mengambil chunk paling relevan dari database (pgvector + FTS).</li>
+                <li>Hasil retrieval digabung dengan prompt dan dikirim ke LLM Gemini.</li>
+                <li>LLM menghasilkan jawaban dengan sitasi sumber.</li>
+              </ol>
+              <div class="sources">
+                <span class="src glass-pill">📄 Modul-IF-2024.pdf · hal 4</span>
+                <span class="src glass-pill">📄 Slide-RAG.pdf · hal 12</span>
+              </div>
+              <div class="response-meta">Waktu respons: 1.84 s</div>
+            </div>
+          </div>
+
+          <!-- Typing indicator -->
+          <div class="typing">
+            <div class="avatar"><div class="brand-mark" style="width:20px;height:20px;border-radius:5px;"></div></div>
+            <div class="dots glass-card"><span></span><span></span><span></span></div>
+          </div>
+        </div>
+
+        <div class="composer">
+          <div class="composer-row glass-input">
+            <textarea rows="1" placeholder="Tanyakan sesuatu pada dokumen…"></textarea>
+            <button class="send glass-button" aria-label="Kirim">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.269 20.876L5.999 12zm0 0h7.5" /></svg>
+            </button>
+          </div>
+          <div class="composer-hint">Enter untuk kirim · Shift+Enter baris baru</div>
+        </div>
+      </section>
+    </div>
+  </div>
+</body>
+</html>

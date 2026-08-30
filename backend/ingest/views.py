@@ -17,6 +17,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .services import run_ingest_pipeline
+from core.models import IngestLog, Document as DocumentModel
 
 logger = logging.getLogger(__name__)
 
@@ -24,12 +25,64 @@ ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt"}
 MAX_SIZE_KB = 102400  # 100 MB
 
 
+class IngestStatusView(APIView):
+    """
+    GET /api/ingest/status/{document_id}/
+    Polling endpoint untuk status dan log ingest.
+    Query params:
+    - session: session_id untuk menyekat log sesi
+    - after: last_log_id untuk ambil log baru saja
+    """
+
+    authentication_classes = [*APIView.authentication_classes]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, document_id: int, *args, **kwargs):
+        if not (request.user.is_authenticated and request.user.role == "admin"):
+            return Response(
+                {"detail": "Anda tidak memiliki izin untuk melihat status ingest."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            document = DocumentModel.objects.get(pk=document_id)
+        except DocumentModel.DoesNotExist:
+            return Response(
+                {"detail": "Dokumen tidak ditemukan."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        session_id = request.query_params.get("session")
+        after_id = int(request.query_params.get("after", 0))
+
+        # Fetch new logs
+        log_query = IngestLog.objects.filter(document_id=document_id, id__gt=after_id).order_by("id")
+        if session_id:
+            log_query = log_query.filter(session_id=session_id)
+
+        logs = [
+            {
+                "id": log.id,
+                "step": log.step,
+                "message": log.message,
+                "created_at": log.created_at.isoformat(),
+            }
+            for log in log_query
+        ]
+
+        return Response(
+            {
+                "logs": logs,
+                "status": document.status,
+            }
+        )
+
+
 class IngestUploadView(APIView):
     """
     POST /api/ingest/upload/
-    Accepts a multipart file upload, creates a Document record, and runs the
-    ingest pipeline (load → preprocess → chunk → embed → persist to pgvector).
-    Optionally accepts `document_id` to re-ingest an existing document.
+    Accepts a multipart file upload, creates a Document record, and returns immediately.
+    The actual ingest pipeline runs asynchronously (to be implemented).
     """
 
     authentication_classes = [*APIView.authentication_classes]
@@ -87,27 +140,30 @@ class IngestUploadView(APIView):
 
         session_id = str(uuid.uuid4())
 
-        try:
-            result = run_ingest_pipeline(
-                file_path=dest_path,
-                original_filename=file.name,
-                document_id=document_id,
-                user_id=request.user.id if request.user.is_authenticated else None,
-                session_id=session_id,
+        # Create Document record with status=processing
+        if document_id is None:
+            document = DocumentModel.objects.create(
+                user_id=request.user.id,
+                document_name=file.name,
+                path_file=str(dest_path),
+                file_type=suffix.lstrip(".").lower(),
+                size=file.size,
+                status=DocumentModel.Status.PROCESSING,
+                ingest_session_id=session_id,
             )
-            return Response(
-                {
-                    "message": "Dokumen berhasil diupload dan sedang diproses.",
-                    "document_id": result["document_id"],
-                    "session_id": session_id,
-                    "status": "indexed",
-                    "chunks_added": result["chunks_added"],
-                },
-                status=status.HTTP_201_CREATED,
+        else:
+            DocumentModel.objects.filter(pk=document_id).update(
+                status=DocumentModel.Status.PROCESSING,
+                ingest_session_id=session_id,
             )
-        except Exception as exc:  # noqa: BLE001
-            logger.exception("Ingest upload failed")
-            return Response(
-                {"detail": f"Gagal memproses dokumen: {exc}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+            document = DocumentModel.objects.get(pk=document_id)
+
+        return Response(
+            {
+                "message": "Dokumen berhasil diupload dan sedang diproses.",
+                "document_id": document.id,
+                "session_id": session_id,
+                "status": "processing",
+            },
+            status=status.HTTP_201_CREATED,
+        )
