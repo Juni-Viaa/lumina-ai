@@ -7,13 +7,15 @@ from pathlib import Path
 
 from django.conf import settings
 
-# ── Paths ──────────────────────────────────────────────────────────────────────
 BASE_DIR = Path(settings.BASE_DIR)
 DOCUMENTS_DIR = BASE_DIR / "documents"
 VECTORSTORE_DIR = BASE_DIR / "vectorstore"
+HF_CACHE_DIR = BASE_DIR / "hf_cache"
 
 DOCUMENTS_DIR.mkdir(exist_ok=True)
 VECTORSTORE_DIR.mkdir(exist_ok=True)
+HF_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
 
 # ── API Keys ───────────────────────────────────────────────────────────────────
 GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")

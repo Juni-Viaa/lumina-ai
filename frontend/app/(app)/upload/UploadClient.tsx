@@ -639,7 +639,7 @@ function IngestSection() {
     setPolling(true);
     setError(null);
     try {
-      const data = await api.get<IngestStatusResponse>(`/ingest/status/${doc.id}/`);
+        const data = await api.get<IngestStatusResponse>(`/ingest/status/${doc.id}/?session=${doc.ingest_session_id}&after=${afterId}`);
       const newLogs = Array.isArray(data.logs) ? data.logs : [];
       setIngestLogs((prev) => {
         const merged = afterId === 0 ? newLogs : [...prev, ...newLogs];

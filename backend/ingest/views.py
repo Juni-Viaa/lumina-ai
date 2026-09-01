@@ -52,13 +52,21 @@ class IngestStatusView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+        # session_id is **required** – tanpa sesi tidak akan mengembalikan log apa‑apa
         session_id = request.query_params.get("session")
+        if not session_id:
+            return Response(
+                {"detail": "Parameter query 'session' wajib disertakan."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         after_id = int(request.query_params.get("after", 0))
 
-        # Fetch new logs
-        log_query = IngestLog.objects.filter(document_id=document_id, id__gt=after_id).order_by("id")
-        if session_id:
-            log_query = log_query.filter(session_id=session_id)
+        # Fetch new logs **only for the given session**
+        log_query = (
+            IngestLog.objects.filter(document_id=document_id, session_id=session_id, id__gt=after_id)
+            .order_by("id")
+        )
 
         logs = [
             {
@@ -157,6 +165,23 @@ class IngestUploadView(APIView):
                 ingest_session_id=session_id,
             )
             document = DocumentModel.objects.get(pk=document_id)
+
+        # Run ingest pipeline **asynchronously** so the response returns immediately
+        from .services import run_ingest_pipeline
+        import threading
+        def _run_async():
+            try:
+                run_ingest_pipeline(
+                    file_path=dest_path,
+                    original_filename=file.name,
+                    document_id=document.id,
+                    user_id=request.user.id,
+                    session_id=session_id,
+                )
+            except Exception as e:  # pragma: no‑cover
+                logger.error("Ingest pipeline failed (async): %s", e)
+        threading.Thread(target=_run_async, daemon=True).start()
+
 
         return Response(
             {
