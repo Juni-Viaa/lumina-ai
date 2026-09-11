@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import Image from "next/image";
 
 import { api } from "@/lib/api";
+import { getUser } from "@/lib/auth";
 
 interface Source {
   source: string;
@@ -47,12 +49,16 @@ export default function DashboardPage() {
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [username, setUsername] = useState("Pengguna");
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const idCounter = useRef(0);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    // Muat daftar dokumen user untuk info "dokumen yang sudah diindeks".
+    const user = getUser();
+    if (user?.username) setUsername(user.username);
+
     api
       .get<Paginated<DocumentItem>>("/documents/")
       .then((data) => setDocuments(data.results))
@@ -60,10 +66,31 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
+    function handleNewChat() {
+      setMessages([]);
+      setQuestion("");
+      setError(null);
+      setLoading(false);
+      idCounter.current = 0;
+      if (textareaRef.current) {
+        textareaRef.current.style.height = "auto";
+      }
+    }
+
+    window.addEventListener("lumina:new-chat", handleNewChat);
+    return () => window.removeEventListener("lumina:new-chat", handleNewChat);
+  }, []);
+
+  useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, loading]);
+
+  function autoResize(el: HTMLTextAreaElement) {
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 120) + "px";
+  }
 
   async function sendMessage() {
     const text = question.trim();
@@ -78,6 +105,10 @@ export default function DashboardPage() {
     setMessages((prev) => [...prev, userMessage]);
     setQuestion("");
     setLoading(true);
+
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
 
     try {
       const data = await api.post<AskResponse>("/ask/", { question: text });
@@ -118,161 +149,167 @@ export default function DashboardPage() {
     }
   }
 
-  return (
-    <div className="glass-panel flex h-full flex-col overflow-hidden">
-      {/* Header */}
-      <div className="shrink-0 border-b border-white/10 px-5 py-4">
-        <h1 className="text-lg font-semibold text-[#1a3a52]">Chat</h1>
-        {documents.length > 0 && (
-          <p className="mt-0.5 text-xs text-[#1a3a52]/50">
-            {documents.length} dokumen siap ·{" "}
-            {documents.map((d) => d.document_name).join(", ")}
-          </p>
-        )}
-      </div>
+  function copyText(text: string) {
+    navigator.clipboard.writeText(text);
+  }
 
-      {/* Messages */}
-      <div
-        ref={scrollRef}
-        className="flex-1 space-y-4 overflow-y-auto px-3 py-4 md:space-y-6 md:px-4 md:py-6"
-      >
+  const inputArea = (
+    <>
+      {error && <p className="mb-1 text-xs text-red-500">{error}</p>}
+      <form onSubmit={handleSubmit} className="flex items-center gap-2.5 rounded-3xl border border-white/50 bg-white/65 px-5 py-2 shadow-[0_8px_32px_rgba(31,38,135,0.1)] backdrop-blur-[20px] transition-all duration-300 focus-within:border-[#3b82f6]/40 focus-within:shadow-[0_8px_32px_rgba(59,130,246,0.15)]">
+        <textarea
+          ref={textareaRef}
+          value={question}
+          onChange={(e) => {
+            setQuestion(e.target.value);
+            autoResize(e.target);
+          }}
+          onKeyDown={handleKeyDown}
+          rows={1}
+          placeholder="Ketik pertanyaanmu..."
+          spellCheck={false}
+          autoComplete="off"
+          disabled={loading}
+          className="max-h-[120px] min-h-[36px] flex-1 resize-none border-none bg-transparent py-2 text-sm text-[#1e3a8a] placeholder-[#93c5fd] outline-none disabled:opacity-50"
+        />
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button type="button" title="Lampirkan file" className="flex h-9 w-9 items-center justify-center rounded-full text-[#60a5fa] transition-colors hover:bg-[#3b82f6]/10 hover:text-[#2563eb]">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px]"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
+          </button>
+          <button type="button" title="Input suara" className="flex h-9 w-9 items-center justify-center rounded-full text-[#60a5fa] transition-colors hover:bg-[#3b82f6]/10 hover:text-[#2563eb]">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px]"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></svg>
+          </button>
+          <button type="submit" disabled={loading || !question.trim()} className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#3b82f6] to-[#1d4ed8] text-white shadow-[0_4px_14px_rgba(37,99,235,0.3)] transition-all duration-300 hover:scale-105 hover:shadow-[0_6px_20px_rgba(37,99,235,0.45)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 disabled:hover:shadow-[0_4px_14px_rgba(37,99,235,0.3)]" aria-label="Kirim">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px]"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
+          </button>
+        </div>
+      </form>
+      {messages.length > 0 && (
+        <p className="mt-2 text-center text-xs text-[#93c5fa]">
+          Lumina dapat membuat kesalahan. Pastikan untuk memeriksa informasi penting.
+        </p>
+      )}
+    </>
+  );
+
+  return (
+    <div className="flex h-full flex-col overflow-hidden">
+      {/* Chat area */}
+      <div ref={scrollRef} className="flex flex-1 flex-col overflow-y-auto">
         {messages.length === 0 && (
-          <div className="flex h-full flex-col items-center justify-center gap-3 py-12 text-center md:py-20">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/80 shadow-sm">
-              <img src="/images/icons/Logo.png" className="h-7 w-10 opacity-70" alt="Lumina" />
+          <div className="flex flex-1 flex-col items-center justify-center px-10 py-10 text-center">
+            <div className="flex h-[72px] w-[72px] items-center justify-center">
+              <Image src="/images/icons/Logo.png" width={72} height={72} className="h-full w-full object-contain mix-blend-multiply" alt="Lumina" />
             </div>
-            <p className="text-base leading-relaxed text-[#1a3a52]/80">
-              Halo! Saya <strong>Lumina</strong>, asisten akademikmu.
-              <br />
-              Ajukan pertanyaan dan aku akan menjawabnya
-              <br />
-              sesuai pengetahuanku.
+            <h1 className="mb-2 text-[28px] font-bold tracking-tight text-[#1e3a8a]">
+              Halo! Saya <span className="text-[#3b82f6]">Lumina</span>
+            </h1>
+            <p className="mb-9 max-w-[440px] text-[15px] leading-relaxed text-[#60a5fa]">
+              Asisten akademikmu. Ajukan pertanyaan dan aku akan menjawabnya sesuai pengetahuanku.
             </p>
             {documents.length === 0 && (
-              <p className="max-w-md text-xs text-[#1a3a52]/40">
-                Belum ada dokumen terindeks. Hubungi admin untuk mengunggah dokumen
-                sebelum mengajukan pertanyaan.
+              <p className="mb-6 max-w-md text-xs text-[#60a5fa]/70">
+                Belum ada dokumen terindeks. Hubungi admin untuk mengunggah dokumen sebelum mengajukan pertanyaan.
               </p>
             )}
+            <div className="mx-auto w-full max-w-[820px]">
+              {inputArea}
+            </div>
           </div>
         )}
 
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex gap-2 md:gap-3 ${
-              msg.role === "user" ? "justify-end" : "justify-start"
-            }`}
-          >
-            {msg.role === "assistant" && (
-              <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm md:h-8 md:w-8">
-                <img src="/images/icons/Logo.png" className="h-6 w-9 opacity-70 md:h-7 md:w-10" alt="Lumina" />
+        {messages.length > 0 && (
+          <div className="mx-auto flex w-full max-w-[820px] flex-col gap-5 px-5 pt-6 pb-2.5">
+            {messages.map((msg) => (
+              <div key={msg.id} className={`flex gap-3.5 ${msg.role === "user" ? "flex-row-reverse text-right" : ""}`}>
+                {msg.role === "assistant" ? (
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#1d4ed8]">
+                    <Image src="/images/icons/Logo.png" width={18} height={18} className="h-[18px] w-[18px]" alt="Lumina" />
+                  </div>
+                ) : (
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#60a5fa] to-[#2563eb] text-[14px] font-semibold text-white">
+                    {username.slice(0, 1).toUpperCase()}
+                  </div>
+                )}
+                <div className={`min-w-0 flex-1 ${msg.role === "user" ? "flex flex-col items-end" : ""}`}>
+                  <div className="mb-1 text-[13px] font-semibold text-[#1e3a8a]">
+                    {msg.role === "user" ? username : "Lumina"}
+                  </div>
+                  {msg.role === "user" ? (
+                    <div className="inline-block rounded-[16px_4px_16px_16px] border border-[#3b82f6]/15 bg-[#3b82f6]/10 px-4 py-3 text-left text-[14px] leading-[1.7] text-[#1e3a8a]">
+                      <span style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                        {msg.content}
+                      </span>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="whitespace-pre-wrap break-words text-[14px] leading-[1.7] text-[#1e3a8a]">
+                        {msg.content}
+                      </p>
+                      {msg.sources && msg.sources.length > 0 && (
+                        <details className="mt-3">
+                          <summary className="cursor-pointer text-xs font-medium text-[#2563eb]">
+                            Lihat {msg.sources.length} sumber
+                          </summary>
+                          <ul className="mt-2 space-y-2">
+                            {msg.sources.map((source, idx) => (
+                              <li
+                                key={idx}
+                                className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs"
+                              >
+                                <span className="font-semibold">{source.source}</span>
+                                <p className="mt-1 line-clamp-3 text-slate-600">
+                                  {source.excerpt}
+                                </p>
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      )}
+                      <div className="mt-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100 [&:hover]:opacity-100">
+                        <button
+                          type="button"
+                          title="Salin"
+                          onClick={() => copyText(msg.content)}
+                          className="rounded-md p-1.5 text-[#60a5fa] transition-colors hover:bg-[#3b82f6]/10 hover:text-[#2563eb]"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-[15px] w-[15px]">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                          </svg>
+                        </button>
+                        {msg.responseTimeMs !== undefined && (
+                          <span className="ml-1 self-center text-[10px] text-[#60a5fa]/60">
+                            {(msg.responseTimeMs / 1000).toFixed(2)} s
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {loading && (
+              <div className="flex gap-3.5">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#1d4ed8] overflow-hidden">
+                  <Image src="/images/icons/Logo.png" width={18} height={18} className="h-[18px] w-[18px]" alt="Lumina" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1 text-[13px] font-semibold text-[#1e3a8a]">Lumina</div>
+                  <div className="flex gap-[5px] py-2">
+                    <span className="typing-dot h-2 w-2 rounded-full bg-[#60a5fa]" />
+                    <span className="typing-dot h-2 w-2 rounded-full bg-[#60a5fa]" />
+                    <span className="typing-dot h-2 w-2 rounded-full bg-[#60a5fa]" />
+                  </div>
+                </div>
               </div>
             )}
-
-            <div
-              className={`rounded-2xl text-sm ${
-                msg.role === "user"
-                  ? "max-w-[85%] rounded-tr-sm border border-slate-200 bg-white px-3 py-2.5 shadow-sm md:max-w-2xl md:px-4 md:py-3"
-                  : "max-w-[92%] rounded-tl-sm border border-slate-100 bg-white px-3 py-3 shadow-sm md:max-w-2xl md:px-5 md:py-4"
-              }`}
-            >
-              {msg.role === "assistant" ? (
-                <>
-                  <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-[#1a3a52]">
-                    {msg.content}
-                  </p>
-                  {msg.responseTimeMs !== undefined && (
-                    <p className="mt-2 text-[10px] text-[#1a3a52]/40">
-                      Waktu respons: {(msg.responseTimeMs / 1000).toFixed(2)} s
-                    </p>
-                  )}
-                  {msg.sources && msg.sources.length > 0 && (
-                    <details className="mt-2">
-                      <summary className="cursor-pointer text-xs font-medium text-[#1a6fa8]">
-                        Lihat {msg.sources.length} sumber
-                      </summary>
-                      <ul className="mt-2 space-y-2">
-                        {msg.sources.map((source, idx) => (
-                          <li
-                            key={idx}
-                            className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs"
-                          >
-                            <span className="font-semibold">{source.source}</span>
-                            <p className="mt-1 line-clamp-3 text-slate-600">
-                              {source.excerpt}
-                            </p>
-                          </li>
-                        ))}
-                      </ul>
-                    </details>
-                  )}
-                </>
-              ) : (
-                <span
-                  className="text-[#0f172a]"
-                  style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: 14, lineHeight: 1.65 }}
-                >
-                  {msg.content}
-                </span>
-              )}
-            </div>
-          </div>
-        ))}
-
-        {loading && (
-          <div className="flex justify-start gap-2 md:gap-3">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm md:h-8 md:w-8">
-              <img src="/images/icons/Logo.png" className="h-7 w-9 opacity-70" alt="Lumina" />
-            </div>
-            <div className="flex items-center gap-2.5 rounded-2xl rounded-tl-sm border border-slate-200 bg-white px-4 py-3 shadow-sm">
-              <span className="flex shrink-0 items-center gap-1.5">
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#1a3a52]/60" style={{ animationDelay: "0ms" }} />
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#1a3a52]/60" style={{ animationDelay: "150ms" }} />
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#1a3a52]/60" style={{ animationDelay: "300ms" }} />
-              </span>
-              <span className="text-xs text-[#1a3a52]/50">
-                {error ? "Terjadi kesalahan, coba lagi." : "Lumina sedang mengetik…"}
-              </span>
-            </div>
           </div>
         )}
       </div>
 
-      {/* Input */}
-      <div className="shrink-0 px-4 pb-3 md:px-5">
-        {error && <p className="mb-1 text-xs text-red-500">{error}</p>}
-        <form onSubmit={handleSubmit} className="flex items-center gap-2 md:gap-3">
-          <textarea
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            onKeyDown={handleKeyDown}
-            rows={1}
-            placeholder="Ketik pertanyaanmu..."
-            spellCheck={false}
-            autoComplete="off"
-            disabled={loading}
-            className="glass-inner max-h-[120px] flex-1 resize-none rounded-xl border border-white/20 bg-transparent px-3 py-2.5 text-[15px] text-black placeholder-black/50 focus:outline-none focus:ring-0 disabled:opacity-50"
-          />
-          <button
-            type="submit"
-            disabled={loading || !question.trim()}
-            className="glass-inner flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[#1a6fa8] transition-all hover:bg-white/30 disabled:cursor-not-allowed disabled:opacity-40 md:h-12 md:w-12"
-            aria-label="Kirim"
-          >
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.269 20.876L5.999 12zm0 0h7.5"
-              />
-            </svg>
-          </button>
-        </form>
-        <p className="mt-1.5 hidden text-center text-[10px] text-black/50 md:mt-2 md:text-xs lg:block">
-          Enter untuk kirim · Shift+Enter baris baru
-        </p>
-      </div>
+      {messages.length > 0 && <div className="shrink-0 px-5 pb-5 pt-4"><div className="mx-auto w-full max-w-[820px]">{inputArea}</div></div>}
     </div>
   );
 }
