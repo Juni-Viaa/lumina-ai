@@ -27,6 +27,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 
 from core.models import Document as DocumentModel, Chunk, IngestLog
 from . import config
+from ingest.ocr_service import ocr_document
 
 logger = logging.getLogger(__name__)
 
@@ -90,9 +91,22 @@ def _copy_to_documents(file_path: Path, original_filename: str, document_id: int
     return dest
 
 
-def _load_document(file_path: Path, document_id: int | None, session_id: str | None) -> list[Document]:
-    """Load a PDF/DOCX/TXT file into LangChain Documents."""
+def _load_document(file_path: Path, document_id: int | None, session_id: str | None, is_ocr: bool = False) -> list[Document]:
+    """Load a PDF/DOCX/TXT/image file into LangChain Documents.
+    Image files use OCR via PaddleOCR when is_ocr=True."""
     suffix = file_path.suffix.lower()
+    image_ext = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp"}
+
+    if is_ocr or suffix in image_ext:
+        from ingest.ocr_service import ocr_document
+        try:
+            result = ocr_document(file_path)
+            text = result["text"]
+        except Exception as exc:
+            logger.error("OCR failed for %s: %s", file_path.name, exc)
+            raise ValueError(f"OCR gagal untuk {file_path.name}: {exc}")
+        _log_ingest(document_id, "ocr", f"OCR extracted {len(text)} chars from {file_path.name}", session_id)
+        return [Document(page_content=text, metadata={"source_file": file_path.name, "page": 0})]
 
     if suffix == ".pdf":
         loader = PyPDFLoader(str(file_path))
@@ -213,8 +227,12 @@ def run_ingest_pipeline(
         # 1. Copy file into documents dir
         dest = _copy_to_documents(file_path, original_filename, document_id, session_id)
 
+        # Deteksi apakah perlu OCR (sebelum load, karena _load_document butuh flag ini)
+        image_ext = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp"}
+        is_ocr = dest.suffix.lstrip(".").lower() in image_ext
+
         # 2. Load document
-        docs = _load_document(dest, document_id, session_id)
+        docs = _load_document(dest, document_id, session_id, is_ocr=is_ocr)
 
         # 3. Preprocess / clean
         docs = _preprocess_documents(docs, document_id, session_id)
@@ -227,6 +245,7 @@ def run_ingest_pipeline(
             # Create a new Document row if none exists
             if user_id is None:
                 raise ValueError("user_id is required when document_id is not provided")
+
             document = DocumentModel.objects.create(
                 user_id=user_id,
                 document_name=original_filename,
@@ -235,6 +254,7 @@ def run_ingest_pipeline(
                 size=dest.stat().st_size,
                 status=DocumentModel.Status.PROCESSING,
                 ingest_session_id=session_id,
+                is_ocr=is_ocr,
             )
             document_id = document.id
         else:

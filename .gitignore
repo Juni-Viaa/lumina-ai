@@ -80,3 +80,12 @@ Thumbs.db
 # Certificates / keys
 # ================================
 *.pem
+
+# ================================
+# ocr 
+# ================================
+backend/poppler_bin/
+backend/hf_cache/
+backend/vectorstore/
+backend/documents/ocr_page_*.png
+.workbuddy-ai/

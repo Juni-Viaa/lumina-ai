@@ -6,13 +6,34 @@ Environment-specific settings ada di development.py dan production.py.
 """
 from pathlib import Path
 import os
-from dotenv import load_dotenv
+import dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 # Load environment variables from .env file if exists
-load_dotenv(BASE_DIR / ".env")
+dotenv.load_dotenv(BASE_DIR / ".env")
+
+# ── Database ──────────────────────────────────────────────────────────
+# Gunakan SQLite untuk development; override via env DB_ENGINE=postgresql jika diperlukan.
+if os.environ.get("DB_ENGINE", "sqlite") == "postgresql":
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.environ.get("DB_NAME", "lumina"),
+            "USER": os.environ.get("DB_USER", "lumina"),
+            "PASSWORD": os.environ.get("DB_PASSWORD", "lumina_secret"),
+            "HOST": os.environ.get("DB_HOST", "127.0.0.1"),
+            "PORT": os.environ.get("DB_PORT", "5433"),
+        }
+    }
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 # ── Security ────────────────────────────────────────────────────────────────
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "")

@@ -22,3 +22,10 @@ sentence-transformers
 pypdf
 python-docx
 docx2txt
+
+# ── OCR ────────────────────────────────────────────────────────────────
+paddleocr==3.7.0
+paddlepaddle==3.3.1
+pdf2image==1.17.0
+opencv-contrib-python==4.10.0.84
+djangorestframework-simplejwt>=5.4.0

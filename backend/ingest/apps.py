@@ -11,14 +11,12 @@ class IngestConfig(AppConfig):
     verbose_name = "Ingest"
 
     def ready(self) -> None:
-        """Pre‑load the embedding model when Django starts.
-        This guarantees the model is cached (downloaded once) and avoids the
-        latency on the first upload request.
-        """
-        from .services import get_embeddings
+        """Pre‑load the embedding model when Django starts."""
+        import logging
         try:
+            from .services import get_embeddings
             get_embeddings()
+        except ImportError:
+            logging.getLogger(__name__).info("Embedding deps not yet available, skipping preload.")
         except Exception as exc:  # pragma: no‑cover
-            # Log but don't crash the app – the ingest view will still handle errors.
-            import logging
             logging.getLogger(__name__).exception("Failed to preload embedding model: %s", exc)

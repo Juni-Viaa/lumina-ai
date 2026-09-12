@@ -1,6 +1,19 @@
 from rest_framework import serializers
+from django.core.files.uploadedfile import UploadedFile
 
 from core.models import Document, Chunk, IngestLog
+
+
+class DocumentUploadSerializer(serializers.Serializer):
+    document = serializers.FileField(error_messages={"required": "Pilih dokumen terlebih dahulu.", "empty": "File kosong tidak dapat diunggah."})
+
+    def validate_document(self, value: UploadedFile) -> UploadedFile:
+        from pathlib import Path
+        if Path(value.name).suffix.lower() not in {".pdf", ".docx", ".txt", ".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp"}:
+            raise serializers.ValidationError("Tipe file tidak didukung.")
+        if value.size > 100 * 1024 * 1024:
+            raise serializers.ValidationError("Ukuran file melebihi batas 100 MB.")
+        return value
 
 
 class DocumentSerializer(serializers.ModelSerializer):
@@ -21,6 +34,7 @@ class DocumentSerializer(serializers.ModelSerializer):
             "size",
             "size_human",
             "status",
+            "is_ocr",
             "ingest_session_id",
             "created_at",
             "updated_at",

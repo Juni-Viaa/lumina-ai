@@ -161,3 +161,11 @@ KONTEKS DOKUMEN
 {context}
 
 """
+
+# ── OCR Configuration ──────────────────────────────────────────
+OCR_LANG = os.getenv("OCR_LANG", "id")
+OCR_USE_GPU = os.getenv("OCR_USE_GPU", "False") == "True"
+OCR_DEVICE = "gpu" if OCR_USE_GPU else "cpu"
+
+# Poppler binary path for Windows (directory containing pdftoppm.exe)
+POPPLER_PATH = str(Path(__file__).resolve().parent.parent / "poppler_bin" / "poppler-26.07.0" / "Library" / "bin")

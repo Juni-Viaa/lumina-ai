@@ -1,9 +1,18 @@
+import logging
+import uuid
+from uuid import uuid4
+from pathlib import Path
+from django.conf import settings
+from django.utils import timezone
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 
 from core.models import Document, Chunk, IngestLog
 from .serializers import DocumentSerializer, ChunkSerializer, IngestLogSerializer
+
+logger = logging.getLogger(__name__)
 
 
 class DocumentViewSet(viewsets.ModelViewSet):
@@ -20,9 +29,104 @@ class DocumentViewSet(viewsets.ModelViewSet):
             return Document.objects.filter(deleted_at__isnull=True)
         return Document.objects.filter(user=user, deleted_at__isnull=True)
 
+    parser_classes = [MultiPartParser, FormParser]
+
     def perform_create(self, serializer):
         """Set user_id otomatis dari user yang sedang login."""
         serializer.save(user=self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        """Handle multipart file upload — simpan file, buat Document, jalankan ingest async."""
+        from .serializers import DocumentUploadSerializer
+        upload = DocumentUploadSerializer(data=request.data)
+        upload.is_valid(raise_exception=True)
+        file = upload.validated_data["document"]
+        if not file:
+            return Response(
+                {"detail": "Field 'document' (file) is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        suffix = file.name.rsplit(".", 1)[-1].lower()
+        upload_dir = Path(settings.MEDIA_ROOT) / "uploads"
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        safe_filename = f"{uuid4()}.{suffix}"
+        dest_path = upload_dir / safe_filename
+        with open(dest_path, "wb+") as dest:
+            for chunk in file.chunks():
+                dest.write(chunk)
+        session_id = str(uuid4())
+        image_ext = {"jpg", "jpeg", "png", "bmp", "tiff", "webp"}
+        is_ocr = suffix in image_ext
+        document = Document.objects.create(
+            user=request.user,
+            document_name=file.name,
+            path_file=str(dest_path),
+            file_type=suffix,
+            size=file.size,
+            status=Document.Status.PROCESSING,
+            ingest_session_id=session_id,
+            is_ocr=is_ocr,
+        )
+        from ingest.services import run_ingest_pipeline
+        import threading
+        def _run_async():
+            try:
+                run_ingest_pipeline(
+                    file_path=dest_path,
+                    original_filename=file.name,
+                    document_id=document.id,
+                    user_id=request.user.id,
+                    session_id=session_id,
+                )
+            except Exception as e:
+                logger.error("Ingest pipeline failed (async): %s", e)
+                document.status = Document.Status.FAILED
+                document.save(update_fields=["status"])
+        threading.Thread(target=_run_async, daemon=True).start()
+        return Response(
+            {"message": "Dokumen berhasil diupload dan sedang diproses.", "document_id": document.id, "session_id": session_id, "status": "processing"},
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=["post"])
+    def ingest(self, request, pk=None):
+        """Trigger ingest pipeline untuk dokumen ini."""
+        document = self.get_object()
+        if document.status == "indexed":
+            return Response({"detail": "Dokumen sudah terindeks."}, status=status.HTTP_200_OK)
+        document.status = Document.Status.PROCESSING
+        document.save(update_fields=["status"])
+        from ingest.services import run_ingest_pipeline
+        import threading
+        def _run():
+            try:
+                run_ingest_pipeline(
+                    file_path=Path(document.path_file),
+                    original_filename=document.document_name,
+                    document_id=document.id,
+                    user_id=document.user_id,
+                    session_id=document.ingest_session_id,
+                )
+            except Exception as e:
+                from core.models import IngestLog
+                IngestLog.objects.create(
+                    document_id=document.id,
+                    session_id=document.ingest_session_id,
+                    step="error",
+                    message=str(e),
+                )
+                document.status = Document.Status.FAILED
+                document.save(update_fields=["status"])
+        threading.Thread(target=_run, daemon=True).start()
+        return Response({"detail": "Ingest dimulai.", "status": "processing"})
+
+    @action(detail=True, methods=["delete"])
+    def delete(self, request, pk=None):
+        """Hapus dokumen secara lunak (soft delete)."""
+        document = self.get_object()
+        document.deleted_at = timezone.now()
+        document.save(update_fields=["deleted_at"])
+        return Response({"detail": "Dokumen dihapus."})
 
     @action(detail=True, methods=["get"])
     def chunks(self, request, pk=None):

@@ -17,18 +17,6 @@ SECRET_KEY = os.environ.get(
 
 ALLOWED_HOSTS = [host for host in os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,testserver").split(",") if host or host == "testserver"]
 
-# ── Database ────────────────────────────────────────────────────────────────
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ.get("DB_NAME", "lumina"),
-        "USER": os.environ.get("DB_USER", "lumina"),
-        "PASSWORD": os.environ.get("DB_PASSWORD", "lumina_secret"),
-        "HOST": os.environ.get("DB_HOST", "127.0.0.1"),
-        "PORT": os.environ.get("DB_PORT", "5433"),
-    }
-}
-
 # ── CORS ────────────────────────────────────────────────────────────────────
 CORS_ALLOWED_ORIGINS = [
     origin

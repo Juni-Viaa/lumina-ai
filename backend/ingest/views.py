@@ -21,7 +21,7 @@ from core.models import IngestLog, Document as DocumentModel
 
 logger = logging.getLogger(__name__)
 
-ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt"}
+ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt", ".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp"}
 MAX_SIZE_KB = 102400  # 100 MB
 
 
@@ -148,6 +148,10 @@ class IngestUploadView(APIView):
 
         session_id = str(uuid.uuid4())
 
+        # Deteksi apakah perlu OCR
+        image_ext = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp"}
+        is_ocr = suffix.lstrip(".").lower() in image_ext
+
         # Create Document record with status=processing
         if document_id is None:
             document = DocumentModel.objects.create(
@@ -158,6 +162,7 @@ class IngestUploadView(APIView):
                 size=file.size,
                 status=DocumentModel.Status.PROCESSING,
                 ingest_session_id=session_id,
+                is_ocr=is_ocr,
             )
         else:
             DocumentModel.objects.filter(pk=document_id).update(

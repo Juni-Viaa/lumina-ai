@@ -134,4 +134,29 @@ export const api = {
     request<T>(path, { method: "POST", body: formData, isFormData: true }),
 };
 
+export interface DocumentItem {
+  id: number;
+  document_name: string;
+  file_type: string;
+  size: number;
+  file_size_mb: number;
+  status: string;
+  is_ocr: boolean;
+  created_at: string;
+}
+
+export interface DocumentUploadResponse {
+  document_id: number;
+  message: string;
+  status: string;
+  session_id: string;
+}
+
+export const documentsApi = {
+  list: () => api.get<{ results: DocumentItem[]; count: number }>("/documents/"),
+  upload: (formData: FormData) => api.uploadFile<DocumentUploadResponse>("/documents/", formData),
+  ingest: (id: number) => api.post(`/documents/${id}/ingest/`, {}),
+  remove: (id: number) => api.delete(`/documents/${id}/delete/`),
+};
+
 export type { RequestOptions };

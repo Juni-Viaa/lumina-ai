@@ -75,6 +75,7 @@ class Document(models.Model):
     status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.PROCESSING
     )
+    is_ocr = models.BooleanField(default=False)
     ingest_session_id = models.UUIDField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -86,6 +87,11 @@ class Document(models.Model):
 
     def __str__(self):
         return self.document_name
+
+    @property
+    def file_size_mb(self) -> float:
+        """Ukuran file dalam MB."""
+        return round(self.size / (1024 * 1024), 2) if self.size else 0.0
 
 
 class Chunk(models.Model):
