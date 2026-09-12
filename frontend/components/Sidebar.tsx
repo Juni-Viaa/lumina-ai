@@ -6,7 +6,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Image from "next/image";
 
 import { api } from "@/lib/api";
-import { getUser } from "@/lib/auth";
+import { clearAuth, getUser } from "@/lib/auth";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -19,6 +19,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const user = getUser();
   const isAdmin = user?.role === "admin" && user?.is_staff === true;
   const [historyOpen, setHistoryOpen] = useState(true);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [history, setHistory] = useState<
     { id: number; title: string; createdAt: string }[]
   >([]);
@@ -79,6 +80,23 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     setTypingHistory(new Set());
     window.dispatchEvent(new Event("lumina:new-chat"));
     router.push("/");
+    onClose();
+  }
+
+  function handleAccountToggle() {
+    setAccountOpen((open) => !open);
+  }
+
+  function handleLogout() {
+    clearAuth();
+    setAccountOpen(false);
+    router.push("/login");
+    onClose();
+  }
+
+  function handleChangePassword() {
+    setAccountOpen(false);
+    router.push("/change-password");
     onClose();
   }
 
@@ -261,10 +279,36 @@ className={`fixed inset-y-0 left-0 z-50 flex h-full w-[280px] -translate-x-full 
         </div>
       </div>
 
-      <div className="border-t border-white/40 px-4 py-4">
+      <div className="relative border-t border-white/40 px-4 py-4">
+        {accountOpen && (
+          <div className="absolute bottom-[76px] left-4 right-4 z-20 overflow-hidden rounded-xl border border-white/50 bg-white/80 p-1 shadow-[0_12px_32px_rgba(37,99,235,0.18)] backdrop-blur-xl">
+            <button
+              type="button"
+              onClick={handleChangePassword}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium text-blue-700 transition-all hover:bg-blue-50/80 hover:text-blue-900"
+            >
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-600">
+                CP
+              </span>
+              <span>Change Password</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium text-blue-700 transition-all hover:bg-blue-50/80 hover:text-blue-900"
+            >
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-600">
+                LO
+              </span>
+              <span>Logout</span>
+            </button>
+          </div>
+        )}
         <button
-          onClick={onClose}
+          type="button"
+          onClick={handleAccountToggle}
           className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-white/55"
+          aria-expanded={accountOpen}
         >
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(37,99,235,0.25)]">
             {user?.username?.slice(0, 1).toUpperCase() || "U"}
@@ -276,6 +320,9 @@ className={`fixed inset-y-0 left-0 z-50 flex h-full w-[280px] -translate-x-full 
             <span className="block truncate text-[11px] text-blue-400 capitalize">
               {user?.role || "member"}
             </span>
+          </span>
+          <span className={`text-sm text-blue-400 transition-transform ${accountOpen ? "rotate-180" : ""}`}>
+            ˅
           </span>
         </button>
       </div>

@@ -170,7 +170,7 @@ export default function DashboardPage() {
           spellCheck={false}
           autoComplete="off"
           disabled={loading}
-          className="max-h-[120px] min-h-[36px] flex-1 resize-none border-none bg-transparent py-2 text-sm text-[#1e3a8a] placeholder-[#93c5fd] outline-none disabled:opacity-50"
+          className="max-h-[120px] min-h-[36px] flex-1 resize-none border-none bg-transparent py-2 text-sm text-[#1e3a8a] placeholder-[#60a5fa] outline-none disabled:opacity-50"
         />
         <div className="flex shrink-0 items-center gap-1.5">
           <button type="button" title="Lampirkan file" className="flex h-9 w-9 items-center justify-center rounded-full text-[#60a5fa] transition-colors hover:bg-[#3b82f6]/10 hover:text-[#2563eb]">
@@ -185,7 +185,7 @@ export default function DashboardPage() {
         </div>
       </form>
       {messages.length > 0 && (
-        <p className="mt-2 text-center text-xs text-[#93c5fa]">
+        <p className="mt-2 text-center text-xs text-[#1e3a8a]">
           Lumina dapat membuat kesalahan. Pastikan untuk memeriksa informasi penting.
         </p>
       )}
@@ -204,7 +204,7 @@ export default function DashboardPage() {
             <h1 className="mb-2 text-[28px] font-bold tracking-tight text-[#1e3a8a]">
               Halo! Saya <span className="text-[#3b82f6]">Lumina</span>
             </h1>
-            <p className="mb-9 max-w-[440px] text-[15px] leading-relaxed text-[#60a5fa]">
+            <p className="mb-9 max-w-[440px] text-[15px] leading-relaxed text-[#1e3a8a]/80">
               Asisten akademikmu. Ajukan pertanyaan dan aku akan menjawabnya sesuai pengetahuanku.
             </p>
             {documents.length === 0 && (
