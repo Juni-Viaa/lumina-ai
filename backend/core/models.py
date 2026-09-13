@@ -202,6 +202,11 @@ class History(models.Model):
 class IngestLog(models.Model):
     """Model log ingest (tabel `ingest_logs`)."""
 
+    class Status(models.TextChoices):
+        STARTED = "started", "Started"
+        SUCCESS = "success", "Success"
+        FAILED = "failed", "Failed"
+
     document = models.ForeignKey(
         Document,
         on_delete=models.CASCADE,
@@ -212,7 +217,10 @@ class IngestLog(models.Model):
     )
     session_id = models.UUIDField(null=True, blank=True)
     step = models.CharField(max_length=255)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.STARTED)
     message = models.TextField()
+    error_message = models.TextField(null=True, blank=True)
+    metadata = models.JSONField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -221,6 +229,7 @@ class IngestLog(models.Model):
         indexes = [
             models.Index(fields=["document", "created_at"]),
             models.Index(fields=["document", "session_id"]),
+            models.Index(fields=["document", "step", "status"]),
         ]
 
     def __str__(self):

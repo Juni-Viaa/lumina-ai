@@ -20,6 +20,19 @@ services:
       timeout: 5s
       retries: 5
 
+  # ── Redis broker untuk Celery ───────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: lumina-django-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # ── Backend (Django) ────────────────────────────────────────────────────────
   backend:
     build:
@@ -43,10 +56,43 @@ services:
       DB_HOST: postgres
       DB_PORT: "5432"
       CORS_ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
       # Ambil dari .env root atau environment saat menjalankan docker compose.
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── Celery Worker ───────────────────────────────────────────────────────────
+  celery:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: lumina-django-celery
+    restart: unless-stopped
+    command: celery -A lumina worker --loglevel=info
+    volumes:
+      - ./backend:/app
+    environment:
+      DJANGO_ENV: development
+      DJANGO_SECRET_KEY: django-insecure-w@)$18!m6_vhuaxt8wnkua_ec_&&@el^qnza^qi8&hzx6s4w&9
+      DJANGO_DEBUG: "True"
+      DJANGO_ALLOWED_HOSTS: "*"
+      DB_NAME: lumina
+      DB_USER: lumina
+      DB_PASSWORD: lumina_secret
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   # ── Frontend (Next.js) ──────────────────────────────────────────────────────

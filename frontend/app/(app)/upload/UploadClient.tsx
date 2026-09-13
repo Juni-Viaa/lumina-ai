@@ -83,7 +83,7 @@ export default function UploadPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="shrink-0 border-b border-white/10 px-5 pt-5">
+      <div className="shrink-0 border-b border-white/10 px-5 py-5">
         <h3 className="text-lg font-semibold leading-tight text-[#1a3a52]">Manajemen Dokumen</h3>
       </div>
       <ManageSection />

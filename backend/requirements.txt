@@ -5,6 +5,8 @@ django-cors-headers>=4.9.0
 python-dotenv>=1.2.3
 psycopg2-binary>=2.9.10
 pgvector>=0.4.0
+celery>=5.5.0
+redis>=6.0.0
 
 # ── RAG / Ingest pipeline (port of Laravel ai/requirements.txt) ────────────────
 # LangChain framework

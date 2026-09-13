@@ -49,14 +49,25 @@ def get_embeddings() -> HuggingFaceEmbeddings:
 
 # ── Logging helpers ────────────────────────────────────────────────────────────
 
-def _log_ingest(document_id: int, step: str, message: str, session_id: str | None = None) -> None:
+def _log_ingest(
+    document_id: int,
+    step: str,
+    message: str,
+    session_id: str | None = None,
+    status: str = IngestLog.Status.STARTED,
+    error_message: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> None:
     """Insert an ingest log row."""
     try:
         IngestLog.objects.create(
             document_id=document_id,
             session_id=session_id,
             step=step,
+            status=status,
             message=message,
+            error_message=error_message,
+            metadata=metadata,
         )
     except Exception as exc:  # noqa: BLE001
         logger.error("Failed to insert ingest log: %s", exc)
@@ -66,7 +77,14 @@ def _mark_failed(document_id: int | None, session_id: str | None, error_message:
     """Uniform failure path: logs an 'error' step and flips status to failed."""
     if document_id is None:
         return
-    _log_ingest(document_id, "error", error_message, session_id)
+    _log_ingest(
+        document_id,
+        "error",
+        "Pipeline ingest gagal.",
+        session_id,
+        status=IngestLog.Status.FAILED,
+        error_message=error_message,
+    )
     try:
         DocumentModel.objects.filter(pk=document_id).update(
             status=DocumentModel.Status.FAILED,
@@ -192,7 +210,13 @@ def _mark_indexed(document_id: int, session_id: str | None) -> None:
         status=DocumentModel.Status.INDEXED,
         updated_at=timezone.now(),
     )
-    _log_ingest(document_id, "complete", "All chunks stored", session_id)
+    _log_ingest(
+        document_id,
+        "complete",
+        "All chunks stored",
+        session_id,
+        status=IngestLog.Status.SUCCESS,
+    )
 
 
 # ── Main pipeline ──────────────────────────────────────────────────────────────
