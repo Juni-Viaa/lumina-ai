@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import os
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -76,9 +77,22 @@ def ocr_image(file_path: Path) -> list[dict]:
     return extracted
 
 
-def ocr_pdf(file_path: Path) -> list[dict]:
+def _poppler_path() -> str | None:
+    """Return the bundled Windows Poppler path only when it exists."""
+    configured_path = Path(config.POPPLER_PATH)
+    return str(configured_path) if configured_path.is_dir() else None
+
+
+def ocr_pdf_pages(
+    file_path: Path,
+    page_numbers: list[int] | None = None,
+    analyze_visuals: bool = False,
+) -> list[dict]:
     """
-    Jalankan OCR pada PDF — extract per halaman sebagai gambar, lalu OCR.
+    Jalankan OCR pada halaman PDF tertentu.
+
+    ``page_numbers`` memakai nomor halaman berbasis nol agar konsisten dengan
+    metadata PyPDFLoader. Jika kosong, semua halaman akan diproses.
     """
     try:
         from pdf2image import convert_from_path
@@ -88,27 +102,49 @@ def ocr_pdf(file_path: Path) -> list[dict]:
             "Install: pip install pdf2image poppler-utils"
         )
 
-    # Poppler binary path for Windows
-    poppler_path = str(config.POPPLER_PATH) if hasattr(config, 'POPPLER_PATH') else None
+    if page_numbers is None:
+        from pypdf import PdfReader
 
-    images = convert_from_path(str(file_path), dpi=300, poppler_path=poppler_path)
-    all_results = []
+        page_numbers = list(range(len(PdfReader(str(file_path)).pages)))
 
-    for page_idx, img in enumerate(images):
-        # Use Windows temp dir instead of /tmp
-        temp_path = Path(os.path.dirname(os.path.abspath(file_path))) / f"ocr_page_{page_idx}.png"
-        img.save(temp_path)
-        page_texts = ocr_image(temp_path)
-        all_results.append({
-            "page_num": page_idx + 1,
-            "text": " ".join(t["text"] for t in page_texts),
-            "blocks": len(page_texts),
-        })
-        temp_path.unlink(missing_ok=True)
+    all_results: list[dict] = []
+    with tempfile.TemporaryDirectory(prefix="lumina-ocr-") as temp_dir:
+        for page_index in sorted(set(page_numbers)):
+            images = convert_from_path(
+                str(file_path),
+                dpi=config.OCR_PDF_DPI,
+                first_page=page_index + 1,
+                last_page=page_index + 1,
+                poppler_path=_poppler_path(),
+            )
+            if not images:
+                continue
+
+            temp_path = Path(temp_dir) / f"page-{page_index + 1}.png"
+            images[0].save(temp_path)
+            page_texts = ocr_image(temp_path)
+            ocr_text = " ".join(t["text"] for t in page_texts)
+            visual_analysis = None
+            if analyze_visuals:
+                from ingest.vision_service import analyze_image
+
+                analysis = analyze_image(temp_path, ocr_text)
+                visual_analysis = analysis.model_dump() if analysis else None
+            all_results.append({
+                "page_num": page_index + 1,
+                "text": ocr_text,
+                "blocks": len(page_texts),
+                "visual_analysis": visual_analysis,
+            })
 
     logger.info("OCR PDF: %d pages processed from %s",
                 len(all_results), file_path.name)
     return all_results
+
+
+def ocr_pdf(file_path: Path) -> list[dict]:
+    """Jalankan OCR pada seluruh halaman PDF."""
+    return ocr_pdf_pages(file_path)
 
 
 def ocr_document(file_path: Path) -> dict:

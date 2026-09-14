@@ -45,6 +45,9 @@ services:
       CORS_ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
       # Ambil dari .env root atau environment saat menjalankan docker compose.
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      # Opt-in: ketika True, gambar dokumen dikirim ke Gemini Vision.
+      VISION_ENABLED: ${VISION_ENABLED:-False}
+      GEMINI_VISION_MODEL: ${GEMINI_VISION_MODEL:-gemini-3.1-flash-lite}
     depends_on:
       postgres:
         condition: service_healthy

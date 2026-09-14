@@ -89,3 +89,6 @@ backend/hf_cache/
 backend/vectorstore/
 backend/documents/ocr_page_*.png
 .workbuddy-ai/
+
+backend/documents/*.pdf
+backend/documents/*.docx

@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import re
 import shutil
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +21,6 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import (
     PyPDFLoader,
-    Docx2txtLoader,
     TextLoader,
 )
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -50,8 +50,15 @@ def get_embeddings() -> HuggingFaceEmbeddings:
 
 # ── Logging helpers ────────────────────────────────────────────────────────────
 
-def _log_ingest(document_id: int, step: str, message: str, session_id: str | None = None) -> None:
+def _log_ingest(
+    document_id: int | None,
+    step: str,
+    message: str,
+    session_id: str | None = None,
+) -> None:
     """Insert an ingest log row."""
+    if document_id is None:
+        return
     try:
         IngestLog.objects.create(
             document_id=document_id,
@@ -99,19 +106,28 @@ def _load_document(file_path: Path, document_id: int | None, session_id: str | N
 
     if is_ocr or suffix in image_ext:
         from ingest.ocr_service import ocr_document
+        from ingest.vision_service import analyze_image, format_visual_analysis
         try:
             result = ocr_document(file_path)
-            text = result["text"]
+            visual_text = format_visual_analysis(
+                analyze_image(file_path, result["text"])
+            )
+            text = "\n".join(
+                part for part in (result["text"], visual_text) if part
+            )
         except Exception as exc:
             logger.error("OCR failed for %s: %s", file_path.name, exc)
             raise ValueError(f"OCR gagal untuk {file_path.name}: {exc}")
         _log_ingest(document_id, "ocr", f"OCR extracted {len(text)} chars from {file_path.name}", session_id)
-        return [Document(page_content=text, metadata={"source_file": file_path.name, "page": 0})]
+        return [Document(
+            page_content=text,
+            metadata={"source_file": file_path.name, "page": 0, "ocr_used": True},
+        )]
 
     if suffix == ".pdf":
-        loader = PyPDFLoader(str(file_path))
+        return _load_pdf_hybrid(file_path, document_id, session_id)
     elif suffix == ".docx":
-        loader = Docx2txtLoader(str(file_path))
+        return _load_docx_hybrid(file_path, document_id, session_id)
     elif suffix == ".txt":
         try:
             loader = TextLoader(str(file_path), encoding="utf-8")
@@ -125,6 +141,199 @@ def _load_document(file_path: Path, document_id: int | None, session_id: str | N
         doc.metadata.setdefault("source_file", file_path.name)
 
     _log_ingest(document_id, "load", f"Loaded {len(docs)} page(s)/section(s)", session_id)
+    return docs
+
+
+def _ocr_docx_images(
+    element: Any,
+    document_part: Any,
+    temp_dir: Path,
+    surrounding_text: str = "",
+) -> list[str]:
+    """Extract and OCR raster images referenced by a DOCX XML element."""
+    from docx.oxml.ns import qn
+    from ingest.ocr_service import ocr_image
+    from ingest.vision_service import analyze_image, format_visual_analysis
+
+    supported_extensions = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp"}
+    results: list[str] = []
+    for image_number, blip in enumerate(element.xpath(".//a:blip"), start=1):
+        relationship_id = blip.get(qn("r:embed"))
+        image_part = document_part.related_parts.get(relationship_id)
+        if image_part is None:
+            continue
+
+        suffix = Path(str(image_part.partname)).suffix.lower()
+        if suffix not in supported_extensions:
+            logger.info("Skipping unsupported DOCX image format: %s", suffix)
+            continue
+
+        image_path = temp_dir / f"image-{image_number}{suffix}"
+        image_path.write_bytes(image_part.blob)
+        blocks = ocr_image(image_path)
+        ocr_text = " ".join(block["text"] for block in blocks).strip()
+        visual_text = format_visual_analysis(
+            analyze_image(image_path, ocr_text, surrounding_text)
+        )
+        combined_text = "\n".join(
+            part for part in (ocr_text, visual_text) if part
+        ).strip()
+        if combined_text:
+            results.append(combined_text)
+    return results
+
+
+def _load_docx_hybrid(
+    file_path: Path,
+    document_id: int | None,
+    session_id: str | None,
+) -> list[Document]:
+    """Read DOCX text and insert OCR text near each embedded image."""
+    from docx import Document as WordDocument
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
+
+    word_document = WordDocument(str(file_path))
+    sections: list[Document] = []
+    image_count = 0
+
+    with tempfile.TemporaryDirectory(prefix="lumina-docx-ocr-") as temp_name:
+        temp_dir = Path(temp_name)
+        for section_index, element in enumerate(word_document.element.body.iterchildren()):
+            if element.tag.endswith("}p"):
+                extracted_text = Paragraph(element, word_document).text.strip()
+            elif element.tag.endswith("}tbl"):
+                table = Table(element, word_document)
+                extracted_text = "\n".join(
+                    " | ".join(cell.text.strip() for cell in row.cells)
+                    for row in table.rows
+                ).strip()
+            else:
+                continue
+
+            try:
+                image_texts = _ocr_docx_images(
+                    element,
+                    word_document.part,
+                    temp_dir,
+                    extracted_text,
+                )
+            except Exception as exc:
+                logger.error("DOCX image OCR failed for %s: %s", file_path.name, exc)
+                raise ValueError(f"OCR gambar DOCX gagal untuk {file_path.name}: {exc}") from exc
+
+            image_count += len(image_texts)
+            combined_text = extracted_text
+            for image_text in image_texts:
+                combined_text = _merge_pdf_page_text(combined_text, image_text)
+
+            if combined_text:
+                sections.append(Document(
+                    page_content=combined_text,
+                    metadata={
+                        "source_file": file_path.name,
+                        "section": section_index,
+                        "ocr_used": bool(image_texts),
+                    },
+                ))
+
+    _log_ingest(
+        document_id,
+        "ocr" if image_count else "load",
+        f"Loaded {len(sections)} DOCX section(s); OCR extracted text from {image_count} image(s)",
+        session_id,
+    )
+    return sections
+
+
+def _pdf_pages_requiring_ocr(file_path: Path, docs: list[Document]) -> list[int]:
+    """Select scanned pages and pages containing embedded images for OCR."""
+    from pypdf import PdfReader
+
+    reader = PdfReader(str(file_path))
+    selected: list[int] = []
+    for page_index, page in enumerate(reader.pages):
+        extracted_text = docs[page_index].page_content if page_index < len(docs) else ""
+        has_little_text = len(extracted_text.strip()) < config.OCR_PDF_MIN_TEXT_CHARS
+        try:
+            has_images = bool(page.images)
+        except Exception:  # noqa: BLE001 - malformed image metadata must not abort ingest
+            has_images = False
+        if has_little_text or has_images:
+            selected.append(page_index)
+    return selected
+
+
+def _merge_pdf_page_text(extracted_text: str, ocr_text: str) -> str:
+    """Combine PDF and OCR text while avoiding obvious full-page duplicates."""
+    extracted_text = extracted_text.strip()
+    ocr_text = ocr_text.strip()
+    if not extracted_text:
+        return ocr_text
+    if not ocr_text:
+        return extracted_text
+
+    normalized_extracted = re.sub(r"\W+", "", extracted_text).lower()
+    normalized_ocr = re.sub(r"\W+", "", ocr_text).lower()
+    if normalized_ocr in normalized_extracted or normalized_extracted in normalized_ocr:
+        return extracted_text if len(extracted_text) >= len(ocr_text) else ocr_text
+    return f"{extracted_text}\n\n[Teks dari gambar]\n{ocr_text}"
+
+
+def _load_pdf_hybrid(
+    file_path: Path,
+    document_id: int | None,
+    session_id: str | None,
+) -> list[Document]:
+    """Extract digital text and OCR scanned/image-bearing PDF pages."""
+    docs = PyPDFLoader(str(file_path)).load()
+    for page_index, doc in enumerate(docs):
+        doc.metadata.setdefault("page", page_index)
+        doc.metadata.setdefault("source_file", file_path.name)
+
+    selected_pages = _pdf_pages_requiring_ocr(file_path, docs)
+    if not selected_pages:
+        _log_ingest(document_id, "load", f"Loaded {len(docs)} PDF page(s); OCR not required", session_id)
+        return docs
+
+    from ingest.ocr_service import ocr_pdf_pages
+
+    try:
+        ocr_results = ocr_pdf_pages(
+            file_path,
+            selected_pages,
+            analyze_visuals=True,
+        )
+    except Exception as exc:
+        logger.error("PDF OCR failed for %s: %s", file_path.name, exc)
+        raise ValueError(f"OCR PDF gagal untuk {file_path.name}: {exc}") from exc
+
+    from ingest.vision_service import VisualAnalysis, format_visual_analysis
+
+    results_by_page: dict[int, str] = {}
+    for result in ocr_results:
+        visual_data = result.get("visual_analysis")
+        visual_text = format_visual_analysis(
+            VisualAnalysis.model_validate(visual_data) if visual_data else None
+        )
+        results_by_page[result["page_num"] - 1] = "\n".join(
+            part for part in (result["text"], visual_text) if part
+        )
+    for page_index in selected_pages:
+        if page_index >= len(docs):
+            docs.append(Document(page_content="", metadata={"page": page_index, "source_file": file_path.name}))
+        docs[page_index].page_content = _merge_pdf_page_text(
+            docs[page_index].page_content,
+            results_by_page.get(page_index, ""),
+        )
+        docs[page_index].metadata["ocr_used"] = True
+
+    _log_ingest(
+        document_id,
+        "ocr",
+        f"OCR processed {len(selected_pages)} of {len(docs)} PDF page(s)",
+        session_id,
+    )
     return docs
 
 
@@ -180,7 +389,8 @@ def _embed_and_persist(
 
         # Update path_file
         document.path_file = str(file_path)
-        document.save(update_fields=["path_file", "updated_at"])
+        document.is_ocr = any(chunk.metadata.get("ocr_used", False) for chunk in chunks)
+        document.save(update_fields=["path_file", "is_ocr", "updated_at"])
 
         # Bulk-create chunks with embeddings and page metadata
         chunk_objs = []
@@ -229,7 +439,7 @@ def run_ingest_pipeline(
 
         # Deteksi apakah perlu OCR (sebelum load, karena _load_document butuh flag ini)
         image_ext = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp"}
-        is_ocr = dest.suffix.lstrip(".").lower() in image_ext
+        is_ocr = dest.suffix.lower() in image_ext
 
         # 2. Load document
         docs = _load_document(dest, document_id, session_id, is_ocr=is_ocr)

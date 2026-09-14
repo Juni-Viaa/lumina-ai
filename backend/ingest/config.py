@@ -36,6 +36,12 @@ GEMINI_MODEL = "gemini-3.1-flash-lite"
 GEMINI_TEMPERATURE = 0.2
 GEMINI_MAX_TOKENS = 1024
 
+# Vision sends document images to Gemini, so it requires explicit opt-in.
+VISION_ENABLED = os.getenv("VISION_ENABLED", "False").lower() == "true"
+GEMINI_VISION_MODEL = os.getenv("GEMINI_VISION_MODEL", GEMINI_MODEL)
+GEMINI_VISION_MAX_TOKENS = int(os.getenv("GEMINI_VISION_MAX_TOKENS", "768"))
+VISION_CONTEXT_MAX_CHARS = int(os.getenv("VISION_CONTEXT_MAX_CHARS", "3000"))
+
 # ── RAG system prompt ──────────────────────────────────────────────────────────
 RAG_SYSTEM_PROMPT = """
 Kamu adalah asisten akademik bernama Lumina yang membantu menjawab pertanyaan berdasarkan dokumen yang diunggah pengguna.
@@ -166,6 +172,8 @@ KONTEKS DOKUMEN
 OCR_LANG = os.getenv("OCR_LANG", "id")
 OCR_USE_GPU = os.getenv("OCR_USE_GPU", "False") == "True"
 OCR_DEVICE = "gpu" if OCR_USE_GPU else "cpu"
+OCR_PDF_MIN_TEXT_CHARS = int(os.getenv("OCR_PDF_MIN_TEXT_CHARS", "80"))
+OCR_PDF_DPI = int(os.getenv("OCR_PDF_DPI", "250"))
 
 # Poppler binary path for Windows (directory containing pdftoppm.exe)
 POPPLER_PATH = str(Path(__file__).resolve().parent.parent / "poppler_bin" / "poppler-26.07.0" / "Library" / "bin")
