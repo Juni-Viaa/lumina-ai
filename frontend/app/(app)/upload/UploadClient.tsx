@@ -108,7 +108,7 @@ export default function UploadPage() {
   const router = useRouter();
   const user = getUser();
   const isAdmin = user?.role === "admin" && user?.is_staff === true;
-  const [tab, setTab] = useState<"upload" | "manage" | "ingesting">("upload");
+  const [tab, setTab] = useState<"upload" | "manage" | "ingesting">("manage");
 
   useEffect(() => {
     if (!isAdmin) router.replace("/");
@@ -126,7 +126,11 @@ export default function UploadPage() {
     <div className="glass-panel flex h-full flex-col overflow-hidden">
       <div className="flex shrink-0 items-start justify-between gap-4 border-b border-white/10 px-5 pb-3 pt-5">
         <h3 className="text-lg font-semibold leading-tight text-[#1a3a52]">
-          Upload & Manage
+          {tab === "manage"
+            ? "Manajemen Dokumen"
+            : tab === "upload"
+              ? "Upload Dokumen"
+              : "Monitoring Ingest"}
         </h3>
         <div className="glass-inner inline-flex rounded-2xl p-1">
           {(
