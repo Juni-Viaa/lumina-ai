@@ -59,7 +59,7 @@ export default function LoginPage() {
         {/* Body */}
         <div className="p-8">
           <div className="mx-auto mb-6 h-24 w-24 rounded-lg">
-            <img src="/images/icons/Logo.png" alt="Logo" className="h-full w-full rounded-lg object-cover" />
+            <img src="/images/icons/Logo.png" alt="Logo" className="h-20 w-20 rounded-lg object-cover" />
           </div>
 
           {error && (

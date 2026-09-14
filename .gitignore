@@ -92,3 +92,8 @@ backend/documents/ocr_page_*.png
 
 backend/documents/*.pdf
 backend/documents/*.docx
+
+# ================================
+# Agents
+# ================================
+.opencode

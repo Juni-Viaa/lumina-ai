@@ -84,7 +84,7 @@ body {
   background: rgba(255, 255, 255, 0.12);
 }
 .sidebar-nav-active {
-  background: rgba(255, 255, 255, 0.16);
+  background: rgba(219, 234, 254, 0.65);
 }
 
 /* ── Scrollbar ────────────────────────────────────────────────────── */
@@ -97,6 +97,62 @@ body {
 ::-webkit-scrollbar-thumb {
   background: rgba(26, 111, 168, 0.2);
   border-radius: 4px;
+}
+
+/* ── Typing indicator bounce ──────────────────────────────────────── */
+@keyframes typingBounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-8px);
+    opacity: 1;
+  }
+}
+.typing-dot {
+  animation: typingBounce 1.4s infinite;
+}
+.typing-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.typing-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+/* ── History item typing animation ─────────────────────────────────── */
+@keyframes typingFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes typingCursor {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+.typing-animation {
+  animation: typingFadeIn 0.4s ease-out forwards;
+  position: relative;
+}
+
+.typing-animation::after {
+  content: "|";
+  position: relative;
+  margin-left: 2px;
+  animation: typingCursor 0.8s infinite;
+  color: #3b82f6;
+  font-weight: 300;
 }
 
 /* ── Mobile drawer overlay ────────────────────────────────────────── */

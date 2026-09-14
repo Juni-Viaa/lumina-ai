@@ -1,241 +1,1042 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Lumina — Mockup Dashboard / Chat (Glassmorphism Blue & White)</title>
-<style>
-  :root {
-    --bg-sky-50: #EAF4FF; --bg-sky-200: #BFD9F5; --bg-sky-400: #7CB1E5;
-    --blue-50: #F0F7FF; --blue-600: #1E5FBF; --blue-700: #0F3F95;
-    --ink-900: #0A2540; --ink-700: #23456B; --ink-500: #5A7592;
-    --white: #FFFFFF; --accent-cyan: #52B6FF;
-    --success: #18B487; --warning: #E6A93B; --danger: #E2506A;
-  }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; height: 100%; }
-  body {
-    font-family: "Space Grotesk", system-ui, sans-serif; color: var(--ink-900);
-    background:
-      radial-gradient(55% 45% at 10% 12%, rgba(82,182,255,0.42) 0%, rgba(82,182,255,0) 60%),
-      radial-gradient(45% 40% at 92% 88%, rgba(124,177,229,0.5) 0%, rgba(124,177,229,0) 65%),
-      linear-gradient(180deg, var(--bg-sky-50) 0%, var(--bg-sky-200) 55%, var(--bg-sky-400) 100%);
-    background-attachment: fixed;
-  }
-  .orb { position: fixed; border-radius: 9999px; filter: blur(80px); opacity: 0.55; z-index: 0; pointer-events: none; }
-  .orb-a { width: 360px; height: 360px; background: #A6D2FF; top: -100px; left: -60px; }
-  .orb-b { width: 420px; height: 420px; background: #6FA8E6; bottom: -120px; right: -80px; }
-  .orb-c { width: 240px; height: 240px; background: #C8E4FF; top: 45%; left: 50%; transform: translate(-50%, -50%); opacity: 0.4; }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glass AI - Ocean Blue Glassmorphism Chatbot</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-  /* Glass system */
-  .glass-floating { background: rgba(255,255,255,0.55); border: 1px solid rgba(255,255,255,0.65); box-shadow: inset 0 1px 0 rgba(255,255,255,0.85), 0 16px 40px -8px rgba(15,63,149,0.18); backdrop-filter: blur(28px) saturate(140%); -webkit-backdrop-filter: blur(28px) saturate(140%); border-radius: 24px; }
-  .glass-card { background: rgba(255,255,255,0.5); border: 1px solid rgba(255,255,255,0.6); box-shadow: inset 0 1px 0 rgba(255,255,255,0.7), 0 8px 24px -6px rgba(15,63,149,0.14); backdrop-filter: blur(20px) saturate(135%); -webkit-backdrop-filter: blur(20px) saturate(135%); border-radius: 20px; }
-  .glass-input { background: rgba(255,255,255,0.55); border: 1px solid rgba(255,255,255,0.6); box-shadow: inset 0 1px 0 rgba(255,255,255,0.85), 0 2px 6px rgba(15,63,149,0.06); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-radius: 18px; }
-  .glass-button { background: linear-gradient(180deg, #2C6FE0 0%, #0F3F95 100%); border: 1px solid rgba(255,255,255,0.25); box-shadow: inset 0 1px 0 rgba(255,255,255,0.3), 0 8px 20px -6px rgba(30,95,191,0.55); color: var(--white); border-radius: 14px; cursor: pointer; transition: transform 120ms ease, box-shadow 200ms ease; }
-  .glass-button:hover { transform: translateY(-1px); }
-  .glass-button:active { transform: scale(0.96); }
-  .glass-pill { background: rgba(255,255,255,0.55); border: 1px solid rgba(255,255,255,0.6); box-shadow: inset 0 1px 0 rgba(255,255,255,0.8); backdrop-filter: blur(10px); border-radius: 999px; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-  /* App layout */
-  .app {
-    position: relative; z-index: 1; height: 100vh;
-  .sidebar {
-    padding: 16px 12px; display: flex; flex-direction: column; gap: 6px;
-    overflow-y: auto; height: 100%;
-  }
-    display: grid; grid-template-columns: 248px 1fr; gap: 14px; padding: 14px;
-  }
-  .sidebar {
-    padding: 16px 12px; display: flex; flex-direction: column; gap: 6px;
-  }
-  .brand { display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin-bottom: 12px; }
-  .brand-mark { width: 32px; height: 32px; border-radius: 9px; background: linear-gradient(135deg, #2C6FE0 0%, #52B6FF 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,0.4); }
-  .brand-name { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; color: var(--ink-900); }
+        :root {
+            --blue-50: #eff6ff;
+            --blue-100: #dbeafe;
+            --blue-200: #bfdbfe;
+            --blue-300: #93c5fd;
+            --blue-400: #60a5fa;
+            --blue-500: #3b82f6;
+            --blue-600: #2563eb;
+            --blue-700: #1d4ed8;
+            --blue-800: #1e40af;
+            --blue-900: #1e3a8a;
+            --white: #ffffff;
+            --glass-bg: rgba(255, 255, 255, 0.65);
+            --glass-border: rgba(255, 255, 255, 0.5);
+            --glass-shadow: 0 8px 32px rgba(31, 38, 135, 0.1);
+            --glass-blur: blur(20px);
+        }
 
-  .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; color: var(--ink-700); font-size: 14px; cursor: pointer; transition: background 150ms ease; }
-  .nav-item:hover { background: rgba(255,255,255,0.5); }
-  .nav-item.active { background: rgba(255,255,255,0.75); box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 4px 10px -4px rgba(15,63,149,0.18); color: var(--ink-900); }
-  .nav-item .icon { width: 18px; height: 18px; color: var(--blue-600); flex-shrink: 0; }
+        html, body {
+            height: 100%;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
 
-  .nav-section-title { font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-500); padding: 14px 12px 4px; }
-  .history-item { padding: 8px 12px 8px 40px; font-size: 13px; color: var(--ink-700); border-radius: 8px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .history-item:hover { background: rgba(255,255,255,0.5); color: var(--ink-900); }
-  .sidebar-foot { margin-top: auto; padding-top: 12px; border-top: 1px solid rgba(15,63,149,0.08); }
+        body {
+            background: linear-gradient(135deg, #c7d8ff 0%, #e0eaff 30%, #f0f6ff 60%, #dbe8ff 100%);
+            display: flex;
+            overflow: hidden;
+            position: relative;
+        }
 
-  /* Main column */
-  .main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-  .topbar { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; }
-  .topbar-title { font-size: 16px; font-weight: 600; color: var(--ink-900); }
-  .topbar-meta { font-size: 12px; color: var(--ink-500); margin-top: 2px; }
-  .profile { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: var(--blue-600); }
-  .profile svg { width: 22px; height: 22px; }
+        /* Decorative background blobs */
+        .blob {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            z-index: 0;
+            pointer-events: none;
+        }
+        .blob-1 {
+            width: 500px;
+            height: 500px;
+            background: rgba(59, 130, 246, 0.25);
+            top: -150px;
+            right: -100px;
+            animation: float 8s ease-in-out infinite;
+        }
+        .blob-2 {
+            width: 400px;
+            height: 400px;
+            background: rgba(147, 197, 253, 0.35);
+            bottom: -100px;
+            left: -80px;
+            animation: float 10s ease-in-out infinite reverse;
+        }
+        .blob-3 {
+            width: 300px;
+            height: 300px;
+            background: rgba(219, 234, 254, 0.4);
+            top: 40%;
+            left: 50%;
+            animation: float 12s ease-in-out infinite;
+        }
 
-  /* Chat panel */
-  .chat { flex: 1; display: flex; flex-direction: column; padding: 0; overflow: hidden; }
-  .chat-head { padding: 18px 22px; border-bottom: 1px solid rgba(15,63,149,0.06); display: flex; align-items: center; justify-content: space-between; }
-  .chat-head h1 { font-size: 18px; font-weight: 600; margin: 0; color: var(--ink-900); }
-  .chat-head .doc-info { font-size: 12px; color: var(--ink-500); }
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(30px, -30px) scale(1.08); }
+        }
 
-  .chat-body { flex: 1; overflow-y: auto; padding: 22px; display: flex; flex-direction: column; gap: 18px; }
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            min-width: 280px;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border-right: 1px solid var(--glass-border);
+            box-shadow: var(--glass-shadow);
+            display: flex;
+            flex-direction: column;
+            z-index: 10;
+            transition: margin-left 0.3s ease;
+        }
+        .sidebar.collapsed {
+            margin-left: -280px;
+        }
 
-  .empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 14px; }
-  .empty-orb { width: 80px; height: 80px; border-radius: 28px; background: linear-gradient(135deg, #2C6FE0 0%, #52B6FF 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 12px 30px -8px rgba(30,95,191,0.5); display: grid; place-items: center; color: white; font-size: 32px; font-weight: 700; }
-  .empty h2 { font-size: 22px; font-weight: 600; margin: 0; color: var(--ink-900); letter-spacing: -0.01em; }
-  .empty p { font-size: 14px; color: var(--ink-700); margin: 0; max-width: 420px; line-height: 1.6; }
-  .suggestions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px; }
-  .chip { font-size: 13px; color: var(--ink-700); padding: 10px 16px; cursor: pointer; transition: background 150ms; }
-  .chip:hover { background: rgba(255,255,255,0.7); }
+        .sidebar-header {
+            padding: 20px 18px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .logo-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 11px;
+            background: linear-gradient(135deg, var(--blue-500), var(--blue-700));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+        }
+        .logo-icon svg { width: 20px; height: 20px; }
+        .logo-text {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--blue-800);
+            letter-spacing: -0.02em;
+        }
+        .logo-text span { color: var(--blue-500); }
 
-  /* Messages */
-  .msg { display: flex; gap: 10px; max-width: 720px; }
-  .msg.user { align-self: flex-end; flex-direction: row-reverse; }
-  .avatar { width: 32px; height: 32px; border-radius: 10px; background: rgba(255,255,255,0.7); border: 1px solid rgba(255,255,255,0.8); box-shadow: inset 0 1px 0 rgba(255,255,255,0.9); display: grid; place-items: center; color: var(--blue-600); flex-shrink: 0; }
-  .avatar.user { background: linear-gradient(135deg, #2C6FE0 0%, #0F3F95 100%); color: white; }
-  .bubble { padding: 14px 18px; font-size: 14px; line-height: 1.6; }
-  .msg.user .bubble { background: rgba(255,255,255,0.7); color: var(--ink-900); border-top-right-radius: 4px; }
-  .msg.assistant .bubble { background: rgba(255,255,255,0.55); color: var(--ink-900); border-top-left-radius: 4px; }
-  .sources { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
-  .src { font-size: 11px; color: var(--blue-700); padding: 4px 10px; }
-  .response-meta { margin-top: 8px; font-size: 10px; color: var(--ink-500); }
+        .new-chat-btn {
+            margin: 14px;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            color: var(--blue-700);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.25s ease;
+            font-family: inherit;
+        }
+        .new-chat-btn:hover {
+            background: rgba(255, 255, 255, 0.8);
+            box-shadow: 0 4px 16px rgba(59, 130, 246, 0.15);
+            transform: translateY(-1px);
+        }
+        .new-chat-btn svg { width: 18px; height: 18px; }
 
-  /* Typing */
-  .typing { display: flex; gap: 10px; max-width: 720px; }
-  .dots { display: inline-flex; align-items: center; gap: 4px; padding: 8px 14px; }
-  .dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-500); animation: bounce 1.2s infinite; }
-  .dots span:nth-child(2) { animation-delay: 0.15s; }
-  .dots span:nth-child(3) { animation-delay: 0.3s; }
-  @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 1; } }
+        .chat-history {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px 10px;
+        }
+        .chat-history::-webkit-scrollbar { width: 5px; }
+        .chat-history::-webkit-scrollbar-track { background: transparent; }
+        .chat-history::-webkit-scrollbar-thumb {
+            background: rgba(59, 130, 246, 0.2);
+            border-radius: 10px;
+        }
 
-  /* Composer */
-  .composer { padding: 16px 22px 18px; border-top: 1px solid rgba(15,63,149,0.06); }
-  .composer-row { display: flex; gap: 10px; align-items: flex-end; padding: 6px 6px 6px 18px; }
-  .composer textarea { flex: 1; border: 0; outline: 0; background: transparent; resize: none; padding: 12px 0; font: inherit; color: var(--ink-900); font-size: 15px; }
-  .composer textarea::placeholder { color: var(--ink-500); }
-  .send { width: 48px; height: 48px; display: grid; place-items: center; flex-shrink: 0; }
-  .send svg { width: 20px; height: 20px; }
-  .composer-hint { text-align: center; font-size: 11px; color: var(--ink-500); margin-top: 8px; }
+        .history-section {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--blue-400);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            padding: 14px 10px 6px;
+        }
 
-  /* Scrollbar */
-  ::-webkit-scrollbar { width: 6px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: rgba(15,63,149,0.2); border-radius: 4px; }
-</style>
+        .history-item {
+            padding: 10px 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 13px;
+            color: var(--blue-900);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.2s ease;
+            margin-bottom: 2px;
+            position: relative;
+        }
+        .history-item:hover {
+            background: rgba(255, 255, 255, 0.55);
+        }
+        .history-item.active {
+            background: rgba(59, 130, 246, 0.12);
+            color: var(--blue-700);
+            font-weight: 500;
+        }
+        .history-item svg { width: 16px; height: 16px; opacity: 0.5; flex-shrink: 0; }
+        .history-item-text {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .history-item .delete-btn {
+            opacity: 0;
+            transition: opacity 0.2s;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            padding: 2px;
+            border-radius: 4px;
+            color: var(--blue-400);
+        }
+        .history-item:hover .delete-btn { opacity: 1; }
+        .history-item .delete-btn:hover { color: #ef4444; background: rgba(239, 68, 68, 0.1); }
+
+        .sidebar-footer {
+            padding: 12px 14px;
+            border-top: 1px solid rgba(255, 255, 255, 0.4);
+        }
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .user-profile:hover { background: rgba(255, 255, 255, 0.5); }
+        .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--blue-400), var(--blue-600));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+        .user-info { flex: 1; overflow: hidden; }
+        .user-info .name { font-size: 13px; font-weight: 500; color: var(--blue-900); }
+        .user-info .plan { font-size: 11px; color: var(--blue-400); }
+
+        /* Main area */
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            z-index: 1;
+            min-width: 0;
+        }
+
+        .top-bar {
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border-bottom: 1px solid var(--glass-border);
+        }
+        .toggle-sidebar {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.4);
+            border: 1px solid var(--glass-border);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--blue-600);
+            transition: all 0.2s;
+        }
+        .toggle-sidebar:hover { background: rgba(255, 255, 255, 0.7); }
+        .toggle-sidebar svg { width: 18px; height: 18px; }
+
+        .model-selector {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.5);
+            border: 1px solid var(--glass-border);
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--blue-800);
+            transition: all 0.2s;
+        }
+        .model-selector:hover { background: rgba(255, 255, 255, 0.75); }
+        .model-selector svg { width: 16px; height: 16px; }
+
+        .top-bar-actions { margin-left: auto; display: flex; gap: 8px; }
+        .icon-btn {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.4);
+            border: 1px solid var(--glass-border);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--blue-600);
+            transition: all 0.2s;
+        }
+        .icon-btn:hover { background: rgba(255, 255, 255, 0.75); }
+        .icon-btn svg { width: 18px; height: 18px; }
+
+        /* Chat area */
+        .chat-area {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+        .chat-area::-webkit-scrollbar { width: 6px; }
+        .chat-area::-webkit-scrollbar-track { background: transparent; }
+        .chat-area::-webkit-scrollbar-thumb {
+            background: rgba(59, 130, 246, 0.2);
+            border-radius: 10px;
+        }
+
+        /* Welcome screen */
+        .welcome-screen {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            text-align: center;
+        }
+        .welcome-logo {
+            width: 72px;
+            height: 72px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, var(--blue-500), var(--blue-700));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 12px 40px rgba(37, 99, 235, 0.3);
+            margin-bottom: 24px;
+        }
+        .welcome-logo svg { width: 36px; height: 36px; }
+        .welcome-screen h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--blue-900);
+            margin-bottom: 8px;
+            letter-spacing: -0.02em;
+        }
+        .welcome-screen h1 span { color: var(--blue-500); }
+        .welcome-screen p {
+            font-size: 15px;
+            color: var(--blue-400);
+            margin-bottom: 36px;
+            max-width: 440px;
+            line-height: 1.6;
+        }
+
+        .suggestion-cards {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 14px;
+            max-width: 560px;
+            width: 100%;
+        }
+        .suggestion-card {
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 18px;
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.3s ease;
+            box-shadow: var(--glass-shadow);
+        }
+        .suggestion-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 36px rgba(59, 130, 246, 0.15);
+            background: rgba(255, 255, 255, 0.8);
+        }
+        .suggestion-card .card-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: rgba(59, 130, 246, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 12px;
+            color: var(--blue-600);
+        }
+        .suggestion-card .card-icon svg { width: 18px; height: 18px; }
+        .suggestion-card h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--blue-900);
+            margin-bottom: 4px;
+        }
+        .suggestion-card p {
+            font-size: 13px;
+            color: var(--blue-400);
+            line-height: 1.5;
+        }
+
+        /* Chat messages */
+        .messages-container {
+            max-width: 820px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 24px 20px 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .message {
+            display: flex;
+            gap: 14px;
+            animation: slideUp 0.4s ease;
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .message.user .message-avatar {
+            background: linear-gradient(135deg, var(--blue-400), var(--blue-600));
+            color: white;
+        }
+        .message.bot .message-avatar {
+            background: linear-gradient(135deg, var(--blue-500), var(--blue-700));
+            color: white;
+        }
+        .message.bot .message-avatar svg { width: 18px; height: 18px; }
+
+        .message-content { flex: 1; min-width: 0; }
+        .message-author {
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: var(--blue-900);
+        }
+        .message-bubble {
+            font-size: 14px;
+            line-height: 1.7;
+            color: var(--blue-900);
+        }
+        .message.user .message-bubble {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.15);
+            border-radius: 4px 16px 16px 16px;
+            padding: 12px 16px;
+            display: inline-block;
+        }
+        .message.bot .message-bubble {
+            padding: 0;
+        }
+
+        .message-actions {
+            display: flex;
+            gap: 4px;
+            margin-top: 8px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .message:hover .message-actions { opacity: 1; }
+        .action-btn {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            padding: 6px;
+            border-radius: 6px;
+            color: var(--blue-400);
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+        }
+        .action-btn:hover { background: rgba(59, 130, 246, 0.1); color: var(--blue-600); }
+        .action-btn svg { width: 15px; height: 15px; }
+
+        /* Typing indicator */
+        .typing-indicator {
+            display: flex;
+            gap: 5px;
+            padding: 8px 0;
+        }
+        .typing-indicator span {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--blue-400);
+            animation: typingBounce 1.4s infinite;
+        }
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typingBounce {
+            0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+            30% { transform: translateY(-8px); opacity: 1; }
+        }
+
+        /* Input area */
+        .input-area {
+            padding: 16px 20px 20px;
+            background: transparent;
+        }
+        .input-container {
+            max-width: 820px;
+            margin: 0 auto;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            box-shadow: var(--glass-shadow);
+            padding: 8px 8px 8px 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.25s ease;
+        }
+        .input-container:focus-within {
+            border-color: rgba(59, 130, 246, 0.4);
+            box-shadow: 0 8px 32px rgba(59, 130, 246, 0.15);
+        }
+        .input-container textarea {
+            flex: 1;
+            border: none;
+            outline: none;
+            background: transparent;
+            font-size: 14px;
+            color: var(--blue-900);
+            font-family: inherit;
+            resize: none;
+            max-height: 120px;
+            line-height: 1.6;
+            padding: 8px 0;
+        }
+        .input-container textarea::placeholder { color: var(--blue-300); }
+
+        .input-actions { display: flex; gap: 6px; align-items: center; }
+        .input-icon-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--blue-400);
+            transition: all 0.2s;
+        }
+        .input-icon-btn:hover { background: rgba(59, 130, 246, 0.1); color: var(--blue-600); }
+        .input-icon-btn svg { width: 18px; height: 18px; }
+
+        .send-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--blue-500), var(--blue-700));
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            transition: all 0.25s ease;
+            box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
+        }
+        .send-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(37, 99, 235, 0.45);
+        }
+        .send-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        .send-btn svg { width: 18px; height: 18px; }
+
+        .input-footer {
+            max-width: 820px;
+            margin: 8px auto 0;
+            text-align: center;
+            font-size: 12px;
+            color: var(--blue-300);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                top: 0;
+                left: 0;
+                height: 100%;
+            }
+            .sidebar.collapsed { margin-left: -280px; }
+            .suggestion-cards { grid-template-columns: 1fr; }
+            .messages-container { padding: 16px 14px 10px; }
+        }
+    </style>
 </head>
 <body>
-  <div class="orb orb-a"></div>
-  <div class="orb orb-b"></div>
-  <div class="orb orb-c"></div>
+    <!-- Background blobs -->
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
 
-  <div class="app">
-    <!-- SIDEBAR -->
-    <aside class="sidebar glass-floating">
-      <div class="brand">
-        <div class="brand-mark"></div>
-        <span class="brand-name">Lumina</span>
-      </div>
-
-      <div class="nav-item active">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-        Chat Baru
-      </div>
-      <div class="nav-item">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
-        Upload Dokumen
-      </div>
-
-      <div class="nav-section-title">Riwayat</div>
-      <div class="history-item">Apa itu RAG?</div>
-      <div class="history-item">Perbandingan dokumen A dan B</div>
-      <div class="history-item">Soal Bloom level C4</div>
-      <div class="history-item">Ringkasan modul 3</div>
-      <div class="history-item">Definisi embedding</div>
-
-      <div class="sidebar-foot">
-        <div class="nav-item">
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" /></svg>
-          Logout
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                        <path d="M2 17l10 5 10-5"/>
+                        <path d="M2 12l10 5 10-5"/>
+                    </svg>
+                </div>
+                <div class="logo-text">Glass<span>AI</span></div>
+            </div>
         </div>
-      </div>
+
+        <button class="new-chat-btn" onclick="newChat()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            New Chat
+        </button>
+
+        <div class="chat-history">
+            <div class="history-section">Today</div>
+            <div class="history-item active">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                <span class="history-item-text">Glassmorphism design tips</span>
+            </div>
+            <div class="history-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                <span class="history-item-text">React state management guide</span>
+            </div>
+            <div class="history-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                <span class="history-item-text">CSS Grid vs Flexbox</span>
+            </div>
+
+            <div class="history-section">Yesterday</div>
+            <div class="history-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                <span class="history-item-text">TypeScript best practices</span>
+            </div>
+            <div class="history-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                <span class="history-item-text">API design principles</span>
+            </div>
+
+            <div class="history-section">Previous 7 days</div>
+            <div class="history-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                <span class="history-item-text">Database indexing strategies</span>
+            </div>
+            <div class="history-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                <span class="history-item-text">Docker compose tutorial</span>
+            </div>
+            <div class="history-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                <span class="history-item-text">JWT authentication flow</span>
+            </div>
+        </div>
+
+        <div class="sidebar-footer">
+            <div class="user-profile">
+                <div class="avatar">AY</div>
+                <div class="user-info">
+                    <div class="name">Ardian Yuda</div>
+                    <div class="plan">Plus Plan</div>
+                </div>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--blue-400);">
+                    <polyline points="9 18 15 12 9 6"/>
+                </svg>
+            </div>
+        </div>
     </aside>
 
-    <!-- MAIN COLUMN -->
-    <div class="main">
-      <header class="topbar glass-floating">
-        <div>
-          <div class="topbar-title">Selamat datang, Aulia</div>
-          <div class="topbar-meta">3 dokumen siap · Modul-IF-2024.pdf, Slide-RAG.pdf, Soal-Latihan.pdf</div>
-        </div>
-        <div class="profile glass-card" title="Profile">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" /></svg>
-        </div>
-      </header>
-
-      <section class="chat glass-floating">
-        <div class="chat-head">
-          <div>
-            <h1>Chat</h1>
-            <div class="doc-info">3 dokumen terindeks</div>
-          </div>
-        </div>
-
-        <div class="chat-body">
-          <!-- Empty state -->
-          <div class="empty">
-            <div class="empty-orb">L</div>
-            <h2>Halo, saya Lumina</h2>
-            <p>Asisten akademik yang menjawab pertanyaan berdasarkan dokumen yang sudah diindeks. Ajukan pertanyaan dan saya akan menjawabnya secara terstruktur dengan sumber.</p>
-            <div class="suggestions">
-              <div class="chip glass-pill">Jelaskan konsep RAG</div>
-              <div class="chip glass-pill">Buat 5 soal Bloom C4</div>
-              <div class="chip glass-pill">Bandingkan dua laporan</div>
-            </div>
-          </div>
-
-          <!-- Example user message -->
-          <div class="msg user">
-            <div class="bubble glass-card">Apa itu RAG dan bagaimana cara kerjanya di Lumina?</div>
-            <div class="avatar user">A</div>
-          </div>
-
-          <!-- Example assistant message -->
-          <div class="msg assistant">
-            <div class="avatar">
-              <div class="brand-mark" style="width:20px;height:20px;border-radius:5px;"></div>
-            </div>
-            <div class="bubble glass-card">
-              <strong>RAG (Retrieval-Augmented Generation)</strong> adalah teknik yang menggabungkan pencarian dokumen dengan generasi teks. Di Lumina, alurnya:
-              <ol style="margin:8px 0 0;padding-left:18px;color:var(--ink-700);">
-                <li>Pertanyaan diubah menjadi embedding vektor.</li>
-                <li>Sistem mengambil chunk paling relevan dari database (pgvector + FTS).</li>
-                <li>Hasil retrieval digabung dengan prompt dan dikirim ke LLM Gemini.</li>
-                <li>LLM menghasilkan jawaban dengan sitasi sumber.</li>
-              </ol>
-              <div class="sources">
-                <span class="src glass-pill">📄 Modul-IF-2024.pdf · hal 4</span>
-                <span class="src glass-pill">📄 Slide-RAG.pdf · hal 12</span>
-              </div>
-              <div class="response-meta">Waktu respons: 1.84 s</div>
-            </div>
-          </div>
-
-          <!-- Typing indicator -->
-          <div class="typing">
-            <div class="avatar"><div class="brand-mark" style="width:20px;height:20px;border-radius:5px;"></div></div>
-            <div class="dots glass-card"><span></span><span></span><span></span></div>
-          </div>
-        </div>
-
-        <div class="composer">
-          <div class="composer-row glass-input">
-            <textarea rows="1" placeholder="Tanyakan sesuatu pada dokumen…"></textarea>
-            <button class="send glass-button" aria-label="Kirim">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.269 20.876L5.999 12zm0 0h7.5" /></svg>
+    <!-- Main -->
+    <main class="main">
+        <div class="top-bar">
+            <button class="toggle-sidebar" onclick="toggleSidebar()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="3" y1="12" x2="21" y2="12"/>
+                    <line x1="3" y1="6" x2="21" y2="6"/>
+                    <line x1="3" y1="18" x2="21" y2="18"/>
+                </svg>
             </button>
-          </div>
-          <div class="composer-hint">Enter untuk kirim · Shift+Enter baris baru</div>
+            <div class="model-selector">
+                <span>GlassAI Pro</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"/>
+                </svg>
+            </div>
+            <div class="top-bar-actions">
+                <button class="icon-btn" title="Share">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="18" cy="5" r="3"/>
+                        <circle cx="6" cy="12" r="3"/>
+                        <circle cx="18" cy="19" r="3"/>
+                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                    </svg>
+                </button>
+                <button class="icon-btn" title="Settings">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    </svg>
+                </button>
+            </div>
         </div>
-      </section>
-    </div>
-  </div>
+
+        <div class="chat-area" id="chatArea">
+            <div class="welcome-screen" id="welcomeScreen">
+                <div class="welcome-logo">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                        <path d="M2 17l10 5 10-5"/>
+                        <path d="M2 12l10 5 10-5"/>
+                    </svg>
+                </div>
+                <h1>Welcome to <span>GlassAI</span></h1>
+                <p>Your intelligent assistant with a beautiful glassmorphism design. Ask me anything to get started.</p>
+
+                <div class="suggestion-cards">
+                    <div class="suggestion-card" onclick="useSuggestion('Explain glassmorphism design and how to implement it in CSS')">
+                        <div class="card-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="13.5" cy="6.5" r="2.5"/>
+                                <circle cx="17.5" cy="10.5" r="2.5"/>
+                                <circle cx="8.5" cy="7.5" r="2.5"/>
+                                <circle cx="6.5" cy="12.5" r="2.5"/>
+                                <path d="M12 2a10 10 0 0 0 0 20 10 10 0 0 0 0-20z"/>
+                            </svg>
+                        </div>
+                        <h3>Design Concepts</h3>
+                        <p>Learn about glassmorphism and modern UI trends</p>
+                    </div>
+                    <div class="suggestion-card" onclick="useSuggestion('Write a Python function to sort a list using quicksort')">
+                        <div class="card-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="16 18 22 12 16 6"/>
+                                <polyline points="8 6 2 12 8 18"/>
+                            </svg>
+                        </div>
+                        <h3>Code Helper</h3>
+                        <p>Write, debug, and optimize your code</p>
+                    </div>
+                    <div class="suggestion-card" onclick="useSuggestion('Give me creative ideas for a blue and white themed landing page')">
+                        <div class="card-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 19l7-7 3 3-7 7-3-3z"/>
+                                <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/>
+                                <path d="M2 2l7.586 7.586"/>
+                                <circle cx="11" cy="11" r="2"/>
+                            </svg>
+                        </div>
+                        <h3>Creative Ideas</h3>
+                        <p>Brainstorm designs, content, and strategies</p>
+                    </div>
+                    <div class="suggestion-card" onclick="useSuggestion('Summarize the key principles of good UX design')">
+                        <div class="card-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+                            </svg>
+                        </div>
+                        <h3>Knowledge Base</h3>
+                        <p>Get clear explanations on any topic</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="messages-container" id="messagesContainer" style="display: none;"></div>
+        </div>
+
+        <div class="input-area">
+            <div class="input-container">
+                <textarea
+                    id="messageInput"
+                    placeholder="Message GlassAI..."
+                    rows="1"
+                    onkeydown="handleKeyDown(event)"
+                    oninput="autoResize(this)"
+                ></textarea>
+                <div class="input-actions">
+                    <button class="input-icon-btn" title="Attach file">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                        </svg>
+                    </button>
+                    <button class="input-icon-btn" title="Voice input">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                            <line x1="12" y1="19" x2="12" y2="23"/>
+                            <line x1="8" y1="23" x2="16" y2="23"/>
+                        </svg>
+                    </button>
+                    <button class="send-btn" id="sendBtn" onclick="sendMessage()" disabled>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="22" y1="2" x2="11" y2="13"/>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="input-footer">
+                GlassAI can make mistakes. Consider checking important information.
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const sidebar = document.getElementById('sidebar');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const messagesContainer = document.getElementById('messagesContainer');
+        const welcomeScreen = document.getElementById('welcomeScreen');
+        const chatArea = document.getElementById('chatArea');
+
+        function toggleSidebar() {
+            sidebar.classList.toggle('collapsed');
+        }
+
+        function autoResize(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+            sendBtn.disabled = textarea.value.trim() === '';
+        }
+
+        function handleKeyDown(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        function useSuggestion(text) {
+            messageInput.value = text;
+            autoResize(messageInput);
+            messageInput.focus();
+        }
+
+        function newChat() {
+            messagesContainer.innerHTML = '';
+            messagesContainer.style.display = 'none';
+            welcomeScreen.style.display = 'flex';
+            messageInput.value = '';
+            autoResize(messageInput);
+        }
+
+        function sendMessage() {
+            const text = messageInput.value.trim();
+            if (!text) return;
+
+            welcomeScreen.style.display = 'none';
+            messagesContainer.style.display = 'flex';
+
+            addMessage(text, 'user');
+            messageInput.value = '';
+            autoResize(messageInput);
+
+            showTypingIndicator();
+
+            setTimeout(() => {
+                removeTypingIndicator();
+                const response = generateResponse(text);
+                addMessage(response, 'bot');
+            }, 1500 + Math.random() * 1000);
+        }
+
+        function addMessage(text, sender) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message ' + sender;
+
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            if (sender === 'user') {
+                avatar.textContent = 'AY';
+            } else {
+                avatar.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>`;
+            }
+
+            const content = document.createElement('div');
+            content.className = 'message-content';
+
+            const author = document.createElement('div');
+            author.className = 'message-author';
+            author.textContent = sender === 'user' ? 'You' : 'GlassAI';
+
+            const bubble = document.createElement('div');
+            bubble.className = 'message-bubble';
+            bubble.textContent = text;
+
+            content.appendChild(author);
+            content.appendChild(bubble);
+
+            if (sender === 'bot') {
+                const actions = document.createElement('div');
+                actions.className = 'message-actions';
+                actions.innerHTML = `
+                    <button class="action-btn" title="Copy" onclick="copyText(this, '${text.replace(/'/g, "\\'")}')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                        </svg>
+                    </button>
+                    <button class="action-btn" title="Like">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+                        </svg>
+                    </button>
+                    <button class="action-btn" title="Dislike">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/>
+                        </svg>
+                    </button>
+                    <button class="action-btn" title="Regenerate">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="23 4 23 10 17 10"/>
+                            <polyline points="1 20 1 14 7 14"/>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                        </svg>
+                    </button>
+                `;
+                content.appendChild(actions);
+            }
+
+            messageDiv.appendChild(avatar);
+            messageDiv.appendChild(content);
+            messagesContainer.appendChild(messageDiv);
+
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+
+        function showTypingIndicator() {
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'message bot';
+            typingDiv.id = 'typingIndicator';
+
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>`;
+
+            const content = document.createElement('div');
+            content.className = 'message-content';
+
+            const author = document.createElement('div');
+            author.className = 'message-author';
+            author.textContent = 'GlassAI';
+
+            const bubble = document.createElement('div');
+            bubble.className = 'message-bubble';
+            bubble.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+
+            content.appendChild(author);
+            content.appendChild(bubble);
+            typingDiv.appendChild(avatar);
+            typingDiv.appendChild(content);
+            messagesContainer.appendChild(typingDiv);
+
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+
+        function removeTypingIndicator() {
+            const indicator = document.getElementById('typingIndicator');
+            if (indicator) indicator.remove();
+        }
+
+        function copyText(btn, text) {
+            navigator.clipboard.writeText(text).then(() => {
+                const original = btn.innerHTML;
+                btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+                setTimeout(() => { btn.innerHTML = original; }, 1500);
+            });
+        }
+
+        function generateResponse(input) {
+            const responses = [
+                'That is a great question! Let me break it down for you. Glassmorphism is a design trend that uses frosted glass effects — semi-transparent backgrounds, backdrop blur, and subtle borders — to create depth and hierarchy. The key CSS properties are backdrop-filter: blur(), semi-transparent rgba backgrounds, and thin borders with low opacity.',
+                'Here is what I think: the combination of blue and white creates a clean, trustworthy, and professional aesthetic. Blue is often associated with intelligence and calm, while white provides clarity and space. Together with glassmorphism, the result feels modern and sophisticated.',
+                'I can definitely help with that! Here are the key points to consider: 1) Use a consistent blue palette across your components, 2) Apply backdrop-filter blur for the glass effect, 3) Keep borders subtle with rgba white, and 4) Ensure proper contrast for accessibility.',
+                'Interesting topic! Let me share some insights. When designing a glassmorphism interface, focus on layering — your background elements should be visible through the frosted glass, creating a sense of depth. Blue gradients in the background paired with white glass surfaces produce an elegant, airy feel.'
+            ];
+            return responses[Math.floor(Math.random() * responses.length)];
+        }
+    </script>
 </body>
 </html>
