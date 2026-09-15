@@ -10,6 +10,7 @@ from .services import (
     _merge_pdf_page_text,
     _pdf_pages_requiring_ocr,
 )
+from .ocr_service import _poppler_path
 from .vision_service import (
     VisualAnalysis,
     _parse_visual_analysis,
@@ -18,6 +19,10 @@ from .vision_service import (
 
 
 class PdfHybridOcrTests(SimpleTestCase):
+    @patch("ingest.ocr_service.os.name", "posix")
+    def test_linux_uses_poppler_from_path(self):
+        self.assertIsNone(_poppler_path())
+
     def test_merge_replaces_empty_page_with_ocr(self):
         self.assertEqual(_merge_pdf_page_text("", "Teks hasil OCR"), "Teks hasil OCR")
 

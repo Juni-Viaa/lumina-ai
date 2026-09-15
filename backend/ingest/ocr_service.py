@@ -78,7 +78,9 @@ def ocr_image(file_path: Path) -> list[dict]:
 
 
 def _poppler_path() -> str | None:
-    """Return the bundled Windows Poppler path only when it exists."""
+    """Return bundled Poppler only on Windows; Linux resolves it from PATH."""
+    if os.name != "nt":
+        return None
     configured_path = Path(config.POPPLER_PATH)
     return str(configured_path) if configured_path.is_dir() else None
 

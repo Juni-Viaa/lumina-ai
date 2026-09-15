@@ -7,6 +7,7 @@
 
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ChangeEvent,
@@ -399,6 +400,7 @@ function UploadSection({ onUploadComplete }: { onUploadComplete: () => void }) {
 function ManageSection({ onViewIngest }: { onViewIngest: () => void }) {
   const [docs, setDocs] = useState<DocumentItem[]>([]);
   const [loadingDocs, setLoadingDocs] = useState(true);
+  const [search, setSearch] = useState("");
   const [openId, setOpenId] = useState<number | null>(null);
   const [chunks, setChunks] = useState<ChunkItem[]>([]);
   const [loadingChunks, setLoadingChunks] = useState(false);
@@ -456,12 +458,53 @@ function ManageSection({ onViewIngest }: { onViewIngest: () => void }) {
     }
   }
 
+  const visibleDocs = useMemo(
+    () =>
+      docs
+        .filter((doc) =>
+          doc.document_name
+            .toLocaleLowerCase("id-ID")
+            .includes(search.toLocaleLowerCase("id-ID")),
+        )
+        .sort(
+          (left, right) =>
+            new Date(right.created_at).getTime() - new Date(left.created_at).getTime(),
+        )
+        .slice(0, 10),
+    [docs, search],
+  );
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 p-5">
-      <div className="flex items-center justify-between gap-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-4 px-5 pb-5">
+      <div className="grid shrink-0 gap-3 sm:grid-cols-2">
+        <div className="glass-inner rounded-2xl p-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-[#1a3a52]/50">Total Dokumen</p>
+          <p className="mt-2 text-3xl font-semibold text-[#1a3a52]">{docs.length}</p>
+        </div>
+        <div className="glass-inner rounded-2xl p-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-[#1a3a52]/50">Total Chunk</p>
+          <p className="mt-2 text-3xl font-semibold text-[#1a3a52]">{openId === null ? 0 : chunks.length}</p>
+          <p className="mt-1 text-xs text-[#1a3a52]/45">Total chunk dimuat saat detail dokumen dibuka.</p>
+        </div>
+      </div>
+
+      <label className="glass-inner flex shrink-0 items-center gap-3 rounded-2xl px-4 py-3">
+        <svg className="h-5 w-5 shrink-0 text-[#1a3a52]/45" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-4.35-4.35m2.35-5.65a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z" />
+        </svg>
+        <input
+          type="search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Cari dokumen..."
+          className="w-full bg-transparent text-sm text-[#1a3a52] outline-none placeholder:text-[#1a3a52]/40"
+        />
+      </label>
+
+      <div className="flex shrink-0 items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-medium text-[#1a3a52]">Dokumen di Database</p>
-          <p className="text-xs text-[#1a3a52]/50">Tinjau atau hapus dokumen yang tersimpan.</p>
+          <p className="text-sm font-medium text-[#1a3a52]">Dokumen Terbaru</p>
+          <p className="text-xs text-[#1a3a52]/50">Menampilkan maksimal 10 dokumen yang terakhir di-ingest.</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -486,7 +529,6 @@ function ManageSection({ onViewIngest }: { onViewIngest: () => void }) {
               />
             </svg>
           </button>
-          <div className="glass-inner rounded-2xl px-3 py-2 text-xs text-[#1a3a52]/60">Total: {docs.length}</div>
         </div>
       </div>
 
@@ -501,7 +543,7 @@ function ManageSection({ onViewIngest }: { onViewIngest: () => void }) {
             </div>
           )}
 
-          {!loadingDocs && docs.length === 0 && (
+          {!loadingDocs && visibleDocs.length === 0 && (
             <div className="flex h-full min-h-64 items-center justify-center p-6 text-center">
               <div className="max-w-sm">
                 <p className="text-sm font-medium text-[#1a3a52]">Belum ada dokumen tersimpan.</p>
@@ -510,9 +552,9 @@ function ManageSection({ onViewIngest }: { onViewIngest: () => void }) {
             </div>
           )}
 
-          {!loadingDocs && docs.length > 0 && (
+          {!loadingDocs && visibleDocs.length > 0 && (
             <div className="divide-y divide-white/10">
-              {docs.map((doc) => (
+              {visibleDocs.map((doc) => (
                 <div key={doc.id} className="px-1 py-0">
                   <div className="flex items-center gap-4 p-4 pr-5">
                     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/20">
@@ -551,7 +593,7 @@ function ManageSection({ onViewIngest }: { onViewIngest: () => void }) {
                         onClick={() => void toggleChunks(doc)}
                         className="rounded-xl px-3 py-2 text-xs text-[#1a6fa8] transition-all hover:bg-white/10"
                       >
-                        {openId === doc.id ? "Tutup" : "Chunks"}
+                        {openId === doc.id ? "Tutup Chunk" : "Lihat Chunk"}
                       </button>
                       <button
                         type="button"
@@ -565,7 +607,7 @@ function ManageSection({ onViewIngest }: { onViewIngest: () => void }) {
                         onClick={() => void handleDelete(doc)}
                         className="rounded-xl px-3 py-2 text-xs text-rose-500 transition-all hover:bg-rose-500/10"
                       >
-                        Delete
+                        Hapus
                       </button>
                     </div>
                   </div>
