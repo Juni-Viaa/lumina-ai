@@ -39,8 +39,10 @@ def get_embeddings() -> HuggingFaceEmbeddings:
     global _embeddings
     if _embeddings is None:
         logger.info("Loading embedding model: %s", config.EMBEDDING_MODEL)
+        cache_folder = str(config.EMBEDDING_MODEL_CACHE_DIR) if config.EMBEDDING_MODEL_CACHE_DIR else None
         _embeddings = HuggingFaceEmbeddings(
             model_name=config.EMBEDDING_MODEL,
+            cache_folder=cache_folder,
             model_kwargs={"device": config.EMBEDDING_DEVICE},
             encode_kwargs={"normalize_embeddings": True},
         )
@@ -54,7 +56,7 @@ def _log_ingest(
     step: str,
     message: str,
     session_id: str | None = None,
-    status: str = IngestLog.Status.STARTED,
+    status: str = "started",
     error_message: str | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> None:
@@ -82,7 +84,7 @@ def _mark_failed(document_id: int | None, session_id: str | None, error_message:
         "error",
         "Pipeline ingest gagal.",
         session_id,
-        status=IngestLog.Status.FAILED,
+        status="failed",
         error_message=error_message,
     )
     try:
@@ -215,7 +217,7 @@ def _mark_indexed(document_id: int, session_id: str | None) -> None:
         "complete",
         "All chunks stored",
         session_id,
-        status=IngestLog.Status.SUCCESS,
+        status="success",
     )
 
 

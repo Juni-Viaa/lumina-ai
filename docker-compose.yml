@@ -43,6 +43,7 @@ services:
     command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
     volumes:
       - ./backend:/app
+      - ./models:/app/models
     ports:
       - "8000:8000"
     environment:
@@ -58,8 +59,8 @@ services:
       CORS_ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
-      # Ambil dari .env root atau environment saat menjalankan docker compose.
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      EMBEDDING_MODEL_CACHE_DIR: /app/models
     depends_on:
       postgres:
         condition: service_healthy
@@ -76,6 +77,7 @@ services:
     command: celery -A lumina worker --loglevel=info
     volumes:
       - ./backend:/app
+      - ./models:/app/models
     environment:
       DJANGO_ENV: development
       DJANGO_SECRET_KEY: django-insecure-w@)$18!m6_vhuaxt8wnkua_ec_&&@el^qnza^qi8&hzx6s4w&9
@@ -89,6 +91,7 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      EMBEDDING_MODEL_CACHE_DIR: /app/models
     depends_on:
       postgres:
         condition: service_healthy

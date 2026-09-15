@@ -174,7 +174,7 @@ class IngestUploadView(APIView):
             _log_ingest(document.id, "re-init", f"Re-ingest dimulai, document_id={document_id}", session_id)
 
         run_ingest_pipeline_task.delay(
-            dest_path=str(dest_path),
+            file_path=str(dest_path),
             original_filename=file.name,
             document_id=document.id,
             user_id=request.user.id,

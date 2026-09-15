@@ -217,7 +217,15 @@ class IngestLog(models.Model):
     )
     session_id = models.UUIDField(null=True, blank=True)
     step = models.CharField(max_length=255)
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.STARTED)
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ("started", "Started"),
+            ("success", "Success"),
+            ("failed", "Failed"),
+        ],
+        default="started",
+    )
     message = models.TextField()
     error_message = models.TextField(null=True, blank=True)
     metadata = models.JSONField(null=True, blank=True)

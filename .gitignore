@@ -54,6 +54,11 @@ frontend/yarn-error.log*
 frontend/pnpm-debug.log*
 
 # ================================
+# Model cache
+# ================================
+models/
+
+# ================================
 # TypeScript
 # ================================
 frontend/*.tsbuildinfo
