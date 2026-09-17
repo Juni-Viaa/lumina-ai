@@ -38,6 +38,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    image: lumina-backend:latest
     container_name: lumina-django-backend
     restart: unless-stopped
     command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
@@ -60,6 +61,10 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      HF_HOME: /app/models/huggingface
+      TRANSFORMERS_CACHE: /app/models/huggingface/hub
+      SENTENCE_TRANSFORMERS_HOME: /app/models/sentence_transformers
+      TORCH_HOME: /app/models/torch
       EMBEDDING_MODEL_CACHE_DIR: /app/models
     depends_on:
       postgres:
@@ -72,6 +77,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    image: lumina-backend:latest
     container_name: lumina-django-celery
     restart: unless-stopped
     command: celery -A lumina worker --loglevel=info
@@ -91,6 +97,46 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      HF_HOME: /app/models/huggingface
+      TRANSFORMERS_CACHE: /app/models/huggingface/hub
+      SENTENCE_TRANSFORMERS_HOME: /app/models/sentence_transformers
+      TORCH_HOME: /app/models/torch
+      EMBEDDING_MODEL_CACHE_DIR: /app/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── Celery Beat Scheduler ───────────────────────────────────────────────────
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: lumina-backend:latest
+    container_name: lumina-django-celery-beat
+    restart: unless-stopped
+    command: celery -A lumina beat --loglevel=info
+    volumes:
+      - ./backend:/app
+      - ./models:/app/models
+    environment:
+      DJANGO_ENV: development
+      DJANGO_SECRET_KEY: django-insecure-w@)$18!m6_vhuaxt8wnkua_ec_&&@el^qnza^qi8&hzx6s4w&9
+      DJANGO_DEBUG: "True"
+      DJANGO_ALLOWED_HOSTS: "*"
+      DB_NAME: lumina
+      DB_USER: lumina
+      DB_PASSWORD: lumina_secret
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      HF_HOME: /app/models/huggingface
+      TRANSFORMERS_CACHE: /app/models/huggingface/hub
+      SENTENCE_TRANSFORMERS_HOME: /app/models/sentence_transformers
+      TORCH_HOME: /app/models/torch
       EMBEDDING_MODEL_CACHE_DIR: /app/models
     depends_on:
       postgres:

@@ -6,6 +6,14 @@ from core.models import Document
 
 
 @shared_task
+def cleanup_expired_files_task():
+    """Celery beat task untuk cleanup file uploads yang expired atau duplicated."""
+    from django.core.management import call_command
+
+    call_command("cleanup_expired_files")
+
+
+@shared_task
 def ingest_document_task(document_id: int):
     """
     Process an uploaded document through the ingest pipeline.

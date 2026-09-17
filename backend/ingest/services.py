@@ -7,6 +7,7 @@ Uses Django ORM + pgvector instead of raw MySQL + FAISS.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
 import shutil
@@ -127,10 +128,20 @@ def _load_document(file_path: Path, document_id: int | None, session_id: str | N
         raise ValueError(f"Unsupported extension '{suffix}'.")
 
     docs = loader.load()
+
+    total_chars = sum(len(doc.page_content) for doc in docs)
+    page_count = len(docs)
+
+    if page_count > 500:
+        raise ValueError(f"Dokumen melebihi batas maksimal 500 halaman (ditemukan: {page_count})")
+
+    if total_chars > 2_000_000:
+        raise ValueError(f"Total karakter melebihi batas maksimal 2 juta (ditemukan: {total_chars})")
+
     for doc in docs:
         doc.metadata.setdefault("source_file", file_path.name)
 
-    _log_ingest(document_id, "load", f"Loaded {len(docs)} page(s)/section(s)", session_id)
+    _log_ingest(document_id, "load", f"Loaded {page_count} page(s)/section(s), {total_chars:,} chars", session_id)
     return docs
 
 
@@ -202,7 +213,7 @@ def _embed_and_persist(
             )
         Chunk.objects.bulk_create(chunk_objs)
 
-    _log_ingest(document.id, "mysql", f"Saved {len(chunk_objs)} chunks to pgvector", session_id)
+    _log_ingest(document.id, "database", f"Saved {len(chunk_objs)} chunks to pgvector", session_id)
     return len(chunk_objs)
 
 
@@ -270,6 +281,14 @@ def run_ingest_pipeline(
 
         # 6. Mark indexed
         _mark_indexed(document_id, session_id)
+
+        # 7. Cleanup uploaded file if it exists and differs from destination
+        if file_path.resolve() != dest.resolve() and file_path.exists():
+            try:
+                file_path.unlink()
+                _log_ingest(document_id, "cleanup", f"Removed upload source: {file_path.name}", session_id)
+            except Exception as exc:
+                logger.warning("Failed to delete upload file %s: %s", file_path, exc)
 
         return {
             "chunks_added": chunks_added,

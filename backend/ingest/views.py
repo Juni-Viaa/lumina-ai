@@ -8,7 +8,6 @@ import uuid
 from pathlib import Path
 
 from django.conf import settings
-from django.core.files.uploadedfile import UploadedFile
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.parsers import FormParser, MultiPartParser
@@ -16,12 +15,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from .serializers import IngestUploadSerializer
 from .services import _log_ingest
 from .tasks import run_ingest_pipeline_task
 from core.models import IngestLog, Document as DocumentModel
-
-ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt"}
-MAX_SIZE_KB = 102400  # 100 MB
 
 
 class IngestStatusView(APIView):
@@ -89,6 +86,7 @@ class IngestUploadView(APIView):
     authentication_classes = [*APIView.authentication_classes]
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
+    throttle_scope = "upload"
 
     def post(self, request, *args, **kwargs):
         if not (request.user.is_authenticated and request.user.role == "admin"):
@@ -97,47 +95,15 @@ class IngestUploadView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        file: UploadedFile | None = request.FILES.get("document")
-        if file is None:
-            return Response(
-                {"detail": "Field 'document' (file) is required."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        self.check_throttles(request)
+
+        serializer = IngestUploadSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+
+        file = serializer.validated_data["document"]
+        document_id = serializer.validated_data.get("document_id")
 
         suffix = Path(file.name).suffix.lower()
-        if suffix not in ALLOWED_EXTENSIONS:
-            return Response(
-                {"detail": f"Tipe file tidak didukung: {suffix}"},
-                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            )
-
-        if file.size and file.size > MAX_SIZE_KB * 1024:
-            return Response(
-                {"detail": "Ukuran file melebihi batas 100 MB."},
-                status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            )
-
-        document_id = request.data.get("document_id")
-        if document_id is not None:
-            try:
-                document_id = int(document_id)
-            except (TypeError, ValueError):
-                return Response(
-                    {"detail": "document_id harus berupa integer."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            try:
-                existing = DocumentModel.objects.get(pk=document_id)
-                if existing.user_id != request.user.id:
-                    return Response(
-                        {"detail": "Anda tidak memiliki akses untuk re-ingest dokumen ini."},
-                        status=status.HTTP_403_FORBIDDEN,
-                    )
-            except DocumentModel.DoesNotExist:
-                return Response(
-                    {"detail": "Dokumen tidak ditemukan."},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
 
         upload_dir = Path(settings.MEDIA_ROOT) / "uploads"
         upload_dir.mkdir(parents=True, exist_ok=True)
