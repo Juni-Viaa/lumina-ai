@@ -11,6 +11,7 @@ import hashlib
 import logging
 import re
 import shutil
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -62,10 +63,20 @@ def _log_ingest(
     metadata: dict[str, Any] | None = None,
 ) -> None:
     """Insert an ingest log row."""
+    valid_session_id = None
+    if session_id:
+        if isinstance(session_id, uuid.UUID):
+            valid_session_id = session_id
+        else:
+            try:
+                valid_session_id = uuid.UUID(str(session_id))
+            except (ValueError, AttributeError):
+                valid_session_id = None
+
     try:
         IngestLog.objects.create(
             document_id=document_id,
-            session_id=session_id,
+            session_id=valid_session_id,
             step=step,
             status=status,
             message=message,
@@ -117,17 +128,17 @@ def _load_document(file_path: Path, document_id: int | None, session_id: str | N
 
     if suffix == ".pdf":
         loader = PyPDFLoader(str(file_path))
+        docs = loader.load()
     elif suffix == ".docx":
         loader = Docx2txtLoader(str(file_path))
+        docs = loader.load()
     elif suffix == ".txt":
         try:
-            loader = TextLoader(str(file_path), encoding="utf-8")
+            docs = TextLoader(str(file_path), encoding="utf-8").load()
         except Exception:  # noqa: BLE001
-            loader = TextLoader(str(file_path), encoding="latin-1")
+            docs = TextLoader(str(file_path), encoding="latin-1").load()
     else:
         raise ValueError(f"Unsupported extension '{suffix}'.")
-
-    docs = loader.load()
 
     total_chars = sum(len(doc.page_content) for doc in docs)
     page_count = len(docs)
@@ -246,7 +257,34 @@ def run_ingest_pipeline(
 
     Returns a dict with `chunks_added`, `document_id`, and `file_path`.
     """
+    valid_session_id = None
+    if session_id:
+        if isinstance(session_id, uuid.UUID):
+            valid_session_id = session_id
+        else:
+            try:
+                valid_session_id = uuid.UUID(str(session_id))
+            except (ValueError, AttributeError):
+                valid_session_id = None
+
     try:
+        # If document_id is not provided, create Document model first
+        if document_id is None:
+            if user_id is None:
+                raise ValueError("user_id is required when document_id is not provided")
+            document = DocumentModel.objects.create(
+                user_id=user_id,
+                document_name=original_filename,
+                path_file=str(file_path),
+                file_type=file_path.suffix.lstrip(".").lower(),
+                size=file_path.stat().st_size if file_path.exists() else 0,
+                status=DocumentModel.Status.PROCESSING,
+                ingest_session_id=valid_session_id,
+            )
+            document_id = document.id
+        else:
+            document = DocumentModel.objects.get(pk=document_id)
+
         # 1. Copy file into documents dir
         dest = _copy_to_documents(file_path, original_filename, document_id, session_id)
 
@@ -260,23 +298,6 @@ def run_ingest_pipeline(
         chunks = _chunk_documents(docs, document_id, session_id)
 
         # 5. Embed + persist to pgvector
-        if document_id is None:
-            # Create a new Document row if none exists
-            if user_id is None:
-                raise ValueError("user_id is required when document_id is not provided")
-            document = DocumentModel.objects.create(
-                user_id=user_id,
-                document_name=original_filename,
-                path_file=str(dest),
-                file_type=dest.suffix.lstrip(".").lower(),
-                size=dest.stat().st_size,
-                status=DocumentModel.Status.PROCESSING,
-                ingest_session_id=session_id,
-            )
-            document_id = document.id
-        else:
-            document = DocumentModel.objects.get(pk=document_id)
-
         chunks_added = _embed_and_persist(document, dest, chunks, session_id)
 
         # 6. Mark indexed
