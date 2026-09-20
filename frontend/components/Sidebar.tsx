@@ -27,9 +27,12 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const [typingHistory, setTypingHistory] = useState<Set<number>>(new Set());
     const newChatRef = useRef<HTMLAnchorElement>(null);
     const typingTimeouts = useRef<Map<number, NodeJS.Timeout>>(new Map());
+    const historyIds = useRef<Set<number>>(new Set());
 
-    const fetchHistory = (currentIds: Set<number>) => {
+    useEffect(() => {
         const abortController = new AbortController();
+        const pendingTimeouts = typingTimeouts.current;
+        const fetchHistory = () => {
         api
             .get<{
                 results: {
@@ -48,32 +51,27 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 }));
                 setHistory(mapped);
                 newHistory.forEach((h) => {
-                    if (h.id && !currentIds.has(h.id)) {
+                    if (h.id && !historyIds.current.has(h.id)) {
                         setNewHistoryId(h.id);
                         const timeoutId = setTimeout(() => {
                             setTypingHistory((prev) => new Set(prev).add(h.id));
                         }, 100);
-                        typingTimeouts.current.set(h.id, timeoutId);
+                        pendingTimeouts.set(h.id, timeoutId);
                     }
                 });
+                historyIds.current = new Set(newHistory.map((h) => h.id));
             })
             .catch(() => {});
-        return abortController;
-    };
-
-    useEffect(() => {
-        const abortController = fetchHistory(new Set());
-        const intervalId = setInterval(() => {
-            const currentIds = new Set(history.map((h) => h.id));
-            fetchHistory(currentIds);
-        }, 5000);
+        };
+        fetchHistory();
+        const intervalId = setInterval(fetchHistory, 5000);
         return () => {
             abortController.abort();
             clearInterval(intervalId);
-            typingTimeouts.current.forEach((timeout) => clearTimeout(timeout));
-            typingTimeouts.current.clear();
+            pendingTimeouts.forEach((timeout) => clearTimeout(timeout));
+            pendingTimeouts.clear();
         };
-    }, [history]);
+    }, []);
 
     function handleNewChat() {
         setNewHistoryId(null);
