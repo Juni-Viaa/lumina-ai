@@ -16,6 +16,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsm6 \
     libice6 \
     poppler-utils \
+    libmagic1 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -24,8 +26,10 @@ WORKDIR /app
 # Copy requirements first for better layer caching
 COPY requirements.txt .
 
-# Install Python dependencies
-RUN pip install --upgrade pip && \
+# Install Python dependencies with pip caching enabled (CPU-only PyTorch to save ~5GB)
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --upgrade pip && \
+    pip install torch --index-url https://download.pytorch.org/whl/cpu && \
     pip install -r requirements.txt
 
 # Copy the rest of the application

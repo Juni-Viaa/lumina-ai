@@ -7,10 +7,12 @@ Uses Django ORM + pgvector instead of raw MySQL + FAISS.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
 import shutil
 import tempfile
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -40,8 +42,10 @@ def get_embeddings() -> HuggingFaceEmbeddings:
     global _embeddings
     if _embeddings is None:
         logger.info("Loading embedding model: %s", config.EMBEDDING_MODEL)
+        cache_folder = str(config.EMBEDDING_MODEL_CACHE_DIR) if config.EMBEDDING_MODEL_CACHE_DIR else None
         _embeddings = HuggingFaceEmbeddings(
             model_name=config.EMBEDDING_MODEL,
+            cache_folder=cache_folder,
             model_kwargs={"device": config.EMBEDDING_DEVICE},
             encode_kwargs={"normalize_embeddings": True},
         )
@@ -55,16 +59,32 @@ def _log_ingest(
     step: str,
     message: str,
     session_id: str | None = None,
+    status: str = "started",
+    error_message: str | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> None:
     """Insert an ingest log row."""
     if document_id is None:
         return
+    valid_session_id = None
+    if session_id:
+        if isinstance(session_id, uuid.UUID):
+            valid_session_id = session_id
+        else:
+            try:
+                valid_session_id = uuid.UUID(str(session_id))
+            except (ValueError, AttributeError):
+                valid_session_id = None
+
     try:
         IngestLog.objects.create(
             document_id=document_id,
-            session_id=session_id,
+            session_id=valid_session_id,
             step=step,
+            status=status,
             message=message,
+            error_message=error_message,
+            metadata=metadata,
         )
     except Exception as exc:  # noqa: BLE001
         logger.error("Failed to insert ingest log: %s", exc)
@@ -74,7 +94,14 @@ def _mark_failed(document_id: int | None, session_id: str | None, error_message:
     """Uniform failure path: logs an 'error' step and flips status to failed."""
     if document_id is None:
         return
-    _log_ingest(document_id, "error", error_message, session_id)
+    _log_ingest(
+        document_id,
+        "error",
+        "Pipeline ingest gagal.",
+        session_id,
+        status="failed",
+        error_message=error_message,
+    )
     try:
         DocumentModel.objects.filter(pk=document_id).update(
             status=DocumentModel.Status.FAILED,
@@ -130,17 +157,25 @@ def _load_document(file_path: Path, document_id: int | None, session_id: str | N
         return _load_docx_hybrid(file_path, document_id, session_id)
     elif suffix == ".txt":
         try:
-            loader = TextLoader(str(file_path), encoding="utf-8")
+            docs = TextLoader(str(file_path), encoding="utf-8").load()
         except Exception:  # noqa: BLE001
-            loader = TextLoader(str(file_path), encoding="latin-1")
+            docs = TextLoader(str(file_path), encoding="latin-1").load()
     else:
         raise ValueError(f"Unsupported extension '{suffix}'.")
 
-    docs = loader.load()
+    total_chars = sum(len(doc.page_content) for doc in docs)
+    page_count = len(docs)
+
+    if page_count > 500:
+        raise ValueError(f"Dokumen melebihi batas maksimal 500 halaman (ditemukan: {page_count})")
+
+    if total_chars > 2_000_000:
+        raise ValueError(f"Total karakter melebihi batas maksimal 2 juta (ditemukan: {total_chars})")
+
     for doc in docs:
         doc.metadata.setdefault("source_file", file_path.name)
 
-    _log_ingest(document_id, "load", f"Loaded {len(docs)} page(s)/section(s)", session_id)
+    _log_ingest(document_id, "load", f"Loaded {page_count} page(s)/section(s), {total_chars:,} chars", session_id)
     return docs
 
 
@@ -406,7 +441,7 @@ def _embed_and_persist(
             )
         Chunk.objects.bulk_create(chunk_objs)
 
-    _log_ingest(document.id, "mysql", f"Saved {len(chunk_objs)} chunks to pgvector", session_id)
+    _log_ingest(document.id, "database", f"Saved {len(chunk_objs)} chunks to pgvector", session_id)
     return len(chunk_objs)
 
 
@@ -416,7 +451,13 @@ def _mark_indexed(document_id: int, session_id: str | None) -> None:
         status=DocumentModel.Status.INDEXED,
         updated_at=timezone.now(),
     )
-    _log_ingest(document_id, "complete", "All chunks stored", session_id)
+    _log_ingest(
+        document_id,
+        "complete",
+        "All chunks stored",
+        session_id,
+        status="success",
+    )
 
 
 # ── Main pipeline ──────────────────────────────────────────────────────────────
@@ -433,7 +474,34 @@ def run_ingest_pipeline(
 
     Returns a dict with `chunks_added`, `document_id`, and `file_path`.
     """
+    valid_session_id = None
+    if session_id:
+        if isinstance(session_id, uuid.UUID):
+            valid_session_id = session_id
+        else:
+            try:
+                valid_session_id = uuid.UUID(str(session_id))
+            except (ValueError, AttributeError):
+                valid_session_id = None
+
     try:
+        # If document_id is not provided, create Document model first
+        if document_id is None:
+            if user_id is None:
+                raise ValueError("user_id is required when document_id is not provided")
+            document = DocumentModel.objects.create(
+                user_id=user_id,
+                document_name=original_filename,
+                path_file=str(file_path),
+                file_type=file_path.suffix.lstrip(".").lower(),
+                size=file_path.stat().st_size if file_path.exists() else 0,
+                status=DocumentModel.Status.PROCESSING,
+                ingest_session_id=valid_session_id,
+            )
+            document_id = document.id
+        else:
+            document = DocumentModel.objects.get(pk=document_id)
+
         # 1. Copy file into documents dir
         dest = _copy_to_documents(file_path, original_filename, document_id, session_id)
 
@@ -451,29 +519,18 @@ def run_ingest_pipeline(
         chunks = _chunk_documents(docs, document_id, session_id)
 
         # 5. Embed + persist to pgvector
-        if document_id is None:
-            # Create a new Document row if none exists
-            if user_id is None:
-                raise ValueError("user_id is required when document_id is not provided")
-
-            document = DocumentModel.objects.create(
-                user_id=user_id,
-                document_name=original_filename,
-                path_file=str(dest),
-                file_type=dest.suffix.lstrip(".").lower(),
-                size=dest.stat().st_size,
-                status=DocumentModel.Status.PROCESSING,
-                ingest_session_id=session_id,
-                is_ocr=is_ocr,
-            )
-            document_id = document.id
-        else:
-            document = DocumentModel.objects.get(pk=document_id)
-
         chunks_added = _embed_and_persist(document, dest, chunks, session_id)
 
         # 6. Mark indexed
         _mark_indexed(document_id, session_id)
+
+        # 7. Cleanup uploaded file if it exists and differs from destination
+        if file_path.resolve() != dest.resolve() and file_path.exists():
+            try:
+                file_path.unlink()
+                _log_ingest(document_id, "cleanup", f"Removed upload source: {file_path.name}", session_id)
+            except Exception as exc:
+                logger.warning("Failed to delete upload file %s: %s", file_path, exc)
 
         return {
             "chunks_added": chunks_added,

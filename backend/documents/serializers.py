@@ -78,7 +78,10 @@ class IngestLogSerializer(serializers.ModelSerializer):
             "document",
             "session_id",
             "step",
+            "status",
             "message",
+            "error_message",
+            "metadata",
             "created_at",
             "updated_at",
         ]

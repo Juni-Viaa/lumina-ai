@@ -13,15 +13,23 @@ __pycache__/
 env/
 venv/
 .venv/
+.venv*/
 ENV/
 env.bak/
 venv.bak/
 
-# Django
+# Django & Media / Local Storage
 staticfiles/
 media/
+media_test/
+documents/
+vectorstore/
+models/
 db.sqlite3
 *.log
+celerybeat-schedule*
+*.pdf
+*.docx
 
 # IDE / Editor
 .idea/
