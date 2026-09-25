@@ -32,8 +32,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     useEffect(() => {
         const abortController = new AbortController();
         const pendingTimeouts = typingTimeouts.current;
+        let requestInFlight = false;
         const fetchHistory = () => {
-        api
+            if (requestInFlight || abortController.signal.aborted) return;
+            requestInFlight = true;
+            api
             .get<{
                 results: {
                     id: number;
@@ -61,7 +64,10 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 });
                 historyIds.current = new Set(newHistory.map((h) => h.id));
             })
-            .catch(() => {});
+            .catch(() => {})
+                .finally(() => {
+                    requestInFlight = false;
+                });
         };
         fetchHistory();
         const intervalId = setInterval(fetchHistory, 5000);

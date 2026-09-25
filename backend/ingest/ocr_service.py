@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import os
 import tempfile
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
@@ -32,7 +33,9 @@ def get_ocr_engine() -> Any:
 
         _ocr_engine = PaddleOCR(
             lang=config.OCR_LANG,
-            use_textline_orientation=True,
+            use_doc_orientation_classify=config.OCR_USE_DOC_ORIENTATION,
+            use_doc_unwarping=config.OCR_USE_DOC_UNWARPING,
+            use_textline_orientation=config.OCR_USE_TEXTLINE_ORIENTATION,
         )
     return _ocr_engine
 
@@ -85,10 +88,70 @@ def _poppler_path() -> str | None:
     return str(configured_path) if configured_path.is_dir() else None
 
 
+def _analyze_pdf_image_regions(
+    page: Any,
+    page_number: int,
+    temp_dir: Path,
+    surrounding_text: str,
+) -> list[dict]:
+    """Analyze significant embedded raster images instead of the full PDF page."""
+    from ingest.vision_service import analyze_image
+
+    regions: list[dict] = []
+    seen_images: set[bytes] = set()
+    max_images = max(0, config.VISION_PDF_MAX_IMAGES_PER_PAGE)
+    try:
+        images = page.images
+        for image_index, image_file in enumerate(images, start=1):
+            if len(regions) >= max_images or image_index > max_images * 4:
+                break
+            try:
+                image = image_file.image
+                if (
+                    image is None
+                    or image.width * image.height < config.VISION_PDF_MIN_IMAGE_PIXELS
+                ):
+                    continue
+                digest = sha256(image_file.data).digest()
+                if digest in seen_images:
+                    continue
+                seen_images.add(digest)
+                image_ref = f"page-{page_number}-image-{image_index}"
+                image_path = temp_dir / f"{image_ref}.png"
+                image.save(image_path, format="PNG")
+                try:
+                    blocks = ocr_image(image_path)
+                except Exception:
+                    logger.exception("OCR failed for PDF image %s", image_ref)
+                    blocks = []
+                region_text = " ".join(block["text"] for block in blocks)
+                scores = [
+                    float(block["confidence"])
+                    for block in blocks if block.get("confidence") is not None
+                ]
+                analysis = analyze_image(image_path, region_text, surrounding_text)
+                if region_text or analysis:
+                    regions.append({
+                        "image_ref": image_ref,
+                        "text": region_text,
+                        "confidence": round(sum(scores) / len(scores), 4) if scores else None,
+                        "visual_analysis": analysis.model_dump() if analysis else None,
+                    })
+            except Exception:
+                logger.exception(
+                    "PDF image %s on page %s could not be analyzed",
+                    image_index, page_number,
+                )
+    except Exception:
+        logger.exception("Could not extract PDF images on page %s", page_number)
+    return regions
+
+
 def ocr_pdf_pages(
     file_path: Path,
     page_numbers: list[int] | None = None,
     analyze_visuals: bool = False,
+    page_contexts: dict[int, str] | None = None,
 ) -> list[dict]:
     """
     Jalankan OCR pada halaman PDF tertentu.
@@ -110,6 +173,14 @@ def ocr_pdf_pages(
         page_numbers = list(range(len(PdfReader(str(file_path)).pages)))
 
     all_results: list[dict] = []
+    pdf_reader = None
+    if analyze_visuals and config.VISION_ENABLED and config.GEMINI_API_KEY:
+        from pypdf import PdfReader
+
+        try:
+            pdf_reader = PdfReader(str(file_path))
+        except Exception:
+            logger.exception("Could not inspect PDF images in %s; using full-page Vision", file_path.name)
     with tempfile.TemporaryDirectory(prefix="lumina-ocr-") as temp_dir:
         for page_index in sorted(set(page_numbers)):
             images = convert_from_path(
@@ -126,17 +197,33 @@ def ocr_pdf_pages(
             images[0].save(temp_path)
             page_texts = ocr_image(temp_path)
             ocr_text = " ".join(t["text"] for t in page_texts)
+            scores = [
+                float(block["confidence"])
+                for block in page_texts if block.get("confidence") is not None
+            ]
             visual_analysis = None
+            visual_regions: list[dict] = []
             if analyze_visuals:
                 from ingest.vision_service import analyze_image
 
-                analysis = analyze_image(temp_path, ocr_text)
-                visual_analysis = analysis.model_dump() if analysis else None
+                if pdf_reader is not None and page_index < len(pdf_reader.pages):
+                    visual_regions = _analyze_pdf_image_regions(
+                        pdf_reader.pages[page_index], page_index + 1,
+                        Path(temp_dir), (page_contexts or {}).get(page_index, ""),
+                    )
+                # Scanned pages and vector drawings may have no separate raster region.
+                if not any(region["visual_analysis"] for region in visual_regions):
+                    analysis = analyze_image(
+                        temp_path, ocr_text, (page_contexts or {}).get(page_index, ""),
+                    )
+                    visual_analysis = analysis.model_dump() if analysis else None
             all_results.append({
                 "page_num": page_index + 1,
                 "text": ocr_text,
                 "blocks": len(page_texts),
+                "confidence": round(sum(scores) / len(scores), 4) if scores else None,
                 "visual_analysis": visual_analysis,
+                "visual_regions": visual_regions,
             })
 
     logger.info("OCR PDF: %d pages processed from %s",

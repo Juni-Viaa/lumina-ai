@@ -19,7 +19,10 @@ from core.models import Answer, Chunk, Document as DocumentModel, History, Inges
 from ingest import config
 from ingest.retrieval import (
     RagPipelineError,
+    _expand_visual_pairs,
     _format_context,
+    _invoke_llm_with_retry,
+    _is_transient_llm_error,
     _save_answer,
     _similarity_search,
     run_rag_query,
@@ -280,7 +283,9 @@ class IngestServicesUnitTest(TestCase):
         )
 
         chunks_input = [
-            LCDocument(page_content="Chunk satu konten pengujian embedding 1024d.", metadata={"page": 0}),
+            LCDocument(page_content="Chunk satu konten pengujian embedding 1024d.", metadata={
+                "page": 0, "source_type": "ocr", "image_ref": "page-1", "ocr_confidence": 0.87,
+            }),
             LCDocument(page_content="Chunk dua konten pengujian embedding 1024d.", metadata={"page": 1}),
         ]
 
@@ -295,6 +300,9 @@ class IngestServicesUnitTest(TestCase):
         chunk1 = chunks_in_db[0]
         self.assertEqual(chunk1.page, 1)  # 0 + 1
         self.assertEqual(chunk1.chunk_text, "Chunk satu konten pengujian embedding 1024d.")
+        self.assertEqual(chunk1.metadata["source_type"], "ocr")
+        self.assertEqual(chunk1.metadata["image_ref"], "page-1")
+        self.assertEqual(chunk1.metadata["ocr_confidence"], 0.87)
         self.assertEqual(len(chunk1.embedding), 1024)
 
         chunk2 = chunks_in_db[1]
@@ -712,8 +720,38 @@ class RetrievalUnitTest(TestCase):
         self.assertEqual(results[0].id, self.chunk1.id)
 
         context = _format_context(results)
-        self.assertIn("[Excerpt 1 — Panduan PBL.pdf, p.2]", context)
+        self.assertIn("[Excerpt 1 — Panduan PBL.pdf, hal. 1; asal: asal belum tercatat]", context)
         self.assertIn("Bab 1: Pendahuluan", context)
+
+    def test_visual_pair_is_added_from_the_same_authorized_document(self):
+        self.chunk1.metadata = {
+            "source_type": "ocr", "image_ref": "page-1", "ocr_confidence": 0.8,
+        }
+        self.chunk1.save(update_fields=["metadata"])
+        vision = Chunk.objects.create(
+            document=self.doc,
+            chunk_text="[Analisis visual] Tiga pilihan scaler terlihat.",
+            page=1,
+            metadata={"source_type": "vision", "image_ref": "page-1"},
+        )
+        other_user = User.objects.create_user(
+            email="other@example.com", username="other", password="testpass123"
+        )
+        other_doc = DocumentModel.objects.create(
+            user=other_user, document_name="Rahasia.pdf", path_file="/path/secret.pdf",
+            file_type="pdf", size=100, status=DocumentModel.Status.INDEXED,
+        )
+        Chunk.objects.create(
+            document=other_doc, chunk_text="Isi privat", page=1,
+            metadata={"source_type": "vision", "image_ref": "page-1"},
+        )
+
+        expanded = _expand_visual_pairs([self.chunk1], user_id=self.user.id)
+
+        self.assertEqual([chunk.id for chunk in expanded], [self.chunk1.id, vision.id])
+        context = _format_context(expanded)
+        self.assertIn("asal: OCR, gambar page-1, keyakinan OCR 0.80", context)
+        self.assertIn("asal: Gemini Vision, gambar page-1", context)
 
     def test_save_answer(self):
         query = Query.objects.create(
@@ -728,6 +766,33 @@ class RetrievalUnitTest(TestCase):
         answer = Answer.objects.get(pk=answer_id)
         self.assertEqual(answer.answer_text, "PBL adalah Project Based Learning.")
         self.assertTrue(History.objects.filter(query=query, answer=answer, user=self.user).exists())
+
+    @patch("ingest.retrieval.time.sleep")
+    def test_llm_transient_connection_error_is_retried(self, mock_sleep):
+        remote_protocol_error = type("RemoteProtocolError", (Exception,), {})
+        chain = MagicMock()
+        chain.invoke.side_effect = [
+            remote_protocol_error("Server disconnected"),
+            "Jawaban setelah koneksi pulih.",
+        ]
+
+        with patch.object(config, "GEMINI_MAX_ATTEMPTS", 2):
+            result = _invoke_llm_with_retry(chain, {"question": "Apa itu RAG?"})
+
+        self.assertEqual(result, "Jawaban setelah koneksi pulih.")
+        self.assertEqual(chain.invoke.call_count, 2)
+        mock_sleep.assert_called_once()
+
+    def test_llm_non_transient_error_is_not_retried(self):
+        chain = MagicMock()
+        chain.invoke.side_effect = ValueError("Invalid request")
+
+        with patch.object(config, "GEMINI_MAX_ATTEMPTS", 2):
+            with self.assertRaises(ValueError):
+                _invoke_llm_with_retry(chain, {"question": "Apa itu RAG?"})
+
+        self.assertEqual(chain.invoke.call_count, 1)
+        self.assertFalse(_is_transient_llm_error(ValueError("Invalid request")))
 
     @patch("ingest.retrieval.get_embeddings")
     @patch("ingest.retrieval._build_llm")

@@ -7,11 +7,11 @@ import json
 import logging
 import mimetypes
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from langchain_core.messages import HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from . import config
 
@@ -19,12 +19,31 @@ logger = logging.getLogger(__name__)
 
 
 class VisualAnalysis(BaseModel):
-    visual_type: str = Field(description="Jenis visual")
+    model_config = ConfigDict(extra="forbid")
+
+    visual_type: Literal[
+        "photo", "diagram", "flowchart", "chart", "table", "ui_screenshot", "other"
+    ] = Field(description="Jenis visual")
     title: str = ""
     description: str
     visible_text: list[str] = Field(default_factory=list)
     key_facts: list[str] = Field(default_factory=list)
     relationships: list[str] = Field(default_factory=list)
+
+    @field_validator("description")
+    @classmethod
+    def require_description(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Visual description must not be empty")
+        return value
+
+    @field_validator("visible_text", "key_facts", "relationships")
+    @classmethod
+    def require_nonempty_items(cls, values: list[str]) -> list[str]:
+        if any(not value.strip() for value in values):
+            raise ValueError("Visual analysis lists must not contain empty items")
+        return [value.strip() for value in values]
 
 
 VISION_PROMPT = """
@@ -38,7 +57,7 @@ Hasil OCR:
 Konteks teks di sekitar gambar:
 {surrounding_text}
 
-Kembalikan tepat satu objek JSON valid tanpa Markdown:
+Isi keluaran terstruktur sesuai skema berikut:
 {{
   "visual_type": "photo|diagram|flowchart|chart|table|ui_screenshot|other",
   "title": "judul yang terlihat atau string kosong",
@@ -109,8 +128,10 @@ def analyze_image(
             max_output_tokens=config.GEMINI_VISION_MAX_TOKENS,
             streaming=False,
         )
-        response = model.invoke([message])
-        return _parse_visual_analysis(_response_text(response.content))
+        response = model.with_structured_output(
+            VisualAnalysis, method="json_schema"
+        ).invoke([message])
+        return VisualAnalysis.model_validate(response)
     except Exception:  # noqa: BLE001 - Vision is optional enrichment
         logger.exception("Gemini Vision analysis failed for %s", file_path.name)
         return None

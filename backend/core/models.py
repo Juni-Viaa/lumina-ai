@@ -105,6 +105,7 @@ class Chunk(models.Model):
     )
     chunk_text = models.TextField()
     page = models.IntegerField(null=True, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
     # 1024 dimensi -> model 'intfloat/multilingual-e5-large'
     embedding = VectorField(dimensions=1024, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

@@ -13,12 +13,12 @@ const INLINE_PATTERN =
 
 function renderInline(text: string, keyPrefix: string): ReactNode[] {
     const nodes: ReactNode[] = [];
+    const pattern = new RegExp(INLINE_PATTERN.source, INLINE_PATTERN.flags);
     let lastIndex = 0;
     let match: RegExpExecArray | null;
     let idx = 0;
-    INLINE_PATTERN.lastIndex = 0;
 
-    while ((match = INLINE_PATTERN.exec(text)) !== null) {
+    while ((match = pattern.exec(text)) !== null) {
         if (match.index > lastIndex) {
             nodes.push(
                 <Fragment key={`${keyPrefix}-t${idx++}`}>

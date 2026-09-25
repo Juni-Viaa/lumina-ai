@@ -65,7 +65,7 @@ function buildHeaders(headers?: HeadersInit): HeadersInit {
 
 async function request<T>(
     path: string,
-    { body, headers, isFormData, timeout, ...options }: RequestOptions = {},
+    { body, headers, isFormData, timeout, signal, ...options }: RequestOptions = {},
 ): Promise<T> {
     const isBodyFormData = isFormData === true;
     const finalHeaders = buildHeaders(
@@ -78,7 +78,13 @@ async function request<T>(
     );
 
     const controller = new AbortController();
-    const timeoutId = timeout ?? DEFAULT_TIMEOUT_MS ? setTimeout(() => controller.abort(), timeout ?? DEFAULT_TIMEOUT_MS) : undefined;
+    const abortFromCaller = () => controller.abort();
+    if (signal?.aborted) controller.abort();
+    else signal?.addEventListener("abort", abortFromCaller, { once: true });
+    const requestTimeout = timeout ?? DEFAULT_TIMEOUT_MS;
+    const timeoutId = requestTimeout > 0
+        ? setTimeout(() => controller.abort(), requestTimeout)
+        : undefined;
 
     try {
         const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -119,14 +125,15 @@ async function request<T>(
         }
         throw error;
     } finally {
+        signal?.removeEventListener("abort", abortFromCaller);
         if (timeoutId) clearTimeout(timeoutId);
     }
 }
 
 export const api = {
     get: <T>(path: string, options?: RequestOptions) => request<T>(path, options),
-    post: <T>(path: string, body: unknown) =>
-        request<T>(path, { method: "POST", body }),
+    post: <T>(path: string, body: unknown, options?: RequestOptions) =>
+        request<T>(path, { ...options, method: "POST", body }),
     patch: <T>(path: string, body: unknown) =>
         request<T>(path, { method: "PATCH", body }),
     delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),

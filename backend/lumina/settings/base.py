@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     "documents",
     "chat",
     "ingest",
+    "evaluation",
 ]
 
 MIDDLEWARE = [

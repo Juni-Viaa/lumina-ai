@@ -64,21 +64,30 @@ export default function HistoryPage() {
     const [search, setSearch] = useState("");
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [openIds, setOpenIds] = useState<Set<number>>(new Set());
 
     useEffect(() => {
+        const abortController = new AbortController();
         api
-            .get<Paginated<HistoryItem>>("/history/")
-            .then((data) => setItems(Array.isArray(data?.results) ? data.results : []))
+            .get<Paginated<HistoryItem>>("/history/", { signal: abortController.signal })
+            .then((data) => {
+                if (!abortController.signal.aborted) {
+                    setItems(Array.isArray(data?.results) ? data.results : []);
+                }
+            })
             .catch((err) =>
-                setError(
+                !abortController.signal.aborted && setError(
                     err instanceof Error ? err.message : "Gagal memuat riwayat chat.",
                 ),
             )
-            .finally(() => setLoading(false));
+            .finally(() => {
+                if (!abortController.signal.aborted) setLoading(false);
+            });
+        return () => abortController.abort();
     }, []);
 
     const filtered = items.filter((item) =>
-        (item.query_detail.display_title || item.query_detail.query_text)
+        (item.query_detail?.display_title || item.query_detail?.query_text || "")
             .toLowerCase()
             .includes(search.toLowerCase()),
     );
@@ -131,21 +140,29 @@ export default function HistoryPage() {
                 ) : (
                     <div className="flex flex-col gap-1">
                         {filtered.map((item) => (
-                            <details key={item.id} className="group">
+                            <details key={item.id} className="group" onToggle={(event) => {
+                                const isOpen = event.currentTarget.open;
+                                setOpenIds((previous) => {
+                                    const next = new Set(previous);
+                                    if (isOpen) next.add(item.id);
+                                    else next.delete(item.id);
+                                    return next;
+                                });
+                            }}>
                                 <summary className="flex cursor-pointer list-none items-center gap-3 rounded-xl px-4 py-3.5 transition-all hover:bg-white/20">
                                     <div className="min-w-0 flex-1">
                                         <p className="truncate text-sm text-[#1a3a52]/80">
-                                            {item.query_detail.display_title || item.query_detail.query_text}
+                                            {item.query_detail?.display_title || item.query_detail?.query_text || `Riwayat #${item.id}`}
                                         </p>
                                         <p className="mt-0.5 text-xs text-[#1a3a52]/40">
-                                            {relativeTime(item.query_detail.created_at)}
-                                            {item.query_detail.status === "answered" && (
+                                            {item.query_detail?.created_at && relativeTime(item.query_detail.created_at)}
+                                            {item.query_detail?.status === "answered" && (
                                                 <span className="ml-1 text-green-600">· Terjawab</span>
                                             )}
-                                            {item.query_detail.status === "failed" && (
+                                            {item.query_detail?.status === "failed" && (
                                                 <span className="ml-1 text-rose-500">· Gagal</span>
                                             )}
-                                            {item.query_detail.status === "pending" && (
+                                            {item.query_detail?.status === "pending" && (
                                                 <span className="ml-1 text-yellow-600">· Pending</span>
                                             )}
                                         </p>
@@ -160,16 +177,16 @@ export default function HistoryPage() {
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
                                     </svg>
                                 </summary>
-                                <div className="mb-2 ml-5 border-l border-white/25 pl-4">
+                                {openIds.has(item.id) && <div className="mb-2 ml-5 border-l border-white/25 pl-4">
                                     <p className="mb-1 mt-2 text-xs font-semibold text-[#1a3a52]/50">Pertanyaan</p>
-                                    <p className="text-sm text-[#1a3a52]/90">{item.query_detail.query_text}</p>
+                                    <p className="text-sm text-[#1a3a52]/90">{item.query_detail?.query_text || ""}</p>
                                     {item.answer_detail && (
                                         <>
                                             <p className="mb-1 mt-3 text-xs font-semibold text-[#1a3a52]/50">Jawaban</p>
                                             <Markdown content={item.answer_detail.answer_text} />
                                         </>
                                     )}
-                                </div>
+                                </div>}
                             </details>
                         ))}
                     </div>

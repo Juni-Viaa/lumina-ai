@@ -3,6 +3,7 @@ import uuid
 from uuid import uuid4
 from pathlib import Path
 from django.conf import settings
+from django.db.models import Count, Q
 from django.utils import timezone
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
@@ -26,8 +27,33 @@ class DocumentViewSet(viewsets.ModelViewSet):
         """Filter dokumen berdasarkan user yang sedang login."""
         user = self.request.user
         if user.role == "admin":
-            return Document.objects.filter(deleted_at__isnull=True)
-        return Document.objects.filter(user=user, deleted_at__isnull=True)
+            queryset = Document.objects.filter(deleted_at__isnull=True)
+        else:
+            queryset = Document.objects.filter(
+                user=user,
+                deleted_at__isnull=True,
+            )
+        active_chunks = Q(chunks__deleted_at__isnull=True)
+        return queryset.annotate(
+            total_chunk_count=Count("chunks", filter=active_chunks),
+            document_text_chunk_count=Count(
+                "chunks",
+                filter=active_chunks & Q(chunks__metadata__source_type="document_text"),
+            ),
+            ocr_chunk_count=Count(
+                "chunks",
+                filter=active_chunks & Q(chunks__metadata__source_type="ocr"),
+            ),
+            vision_chunk_count=Count(
+                "chunks",
+                filter=active_chunks & Q(chunks__metadata__source_type="vision"),
+            ),
+            processed_page_count=Count(
+                "chunks__page",
+                filter=active_chunks & Q(chunks__page__isnull=False),
+                distinct=True,
+            ),
+        ).order_by("-created_at")
 
     parser_classes = [MultiPartParser, FormParser]
 
@@ -132,7 +158,10 @@ class DocumentViewSet(viewsets.ModelViewSet):
     def chunks(self, request, pk=None):
         """Mengembalikan daftar chunk untuk dokumen tertentu."""
         document = self.get_object()
-        chunks = Chunk.objects.filter(document=document, deleted_at__isnull=True)
+        chunks = Chunk.objects.filter(
+            document=document,
+            deleted_at__isnull=True,
+        ).order_by("page", "id")
         serializer = ChunkSerializer(chunks, many=True)
         return Response(serializer.data)
 

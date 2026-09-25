@@ -43,6 +43,10 @@ TOP_K = 7
 GEMINI_MODEL = "gemini-3.1-flash-lite"
 GEMINI_TEMPERATURE = 0.2
 GEMINI_MAX_TOKENS = 1024
+GEMINI_MAX_ATTEMPTS = max(1, int(os.getenv("GEMINI_MAX_ATTEMPTS", "2")))
+GEMINI_RETRY_DELAY_SECONDS = max(
+    0.0, float(os.getenv("GEMINI_RETRY_DELAY_SECONDS", "1"))
+)
 
 # Vision sends document images to Gemini, so it requires explicit opt-in.
 VISION_ENABLED = os.getenv("VISION_ENABLED", "False").lower() == "true"
@@ -90,6 +94,8 @@ Untuk pertanyaan high context:
 - **Sintesis, bukan tempel.** Jangan hanya menjejerkan ringkasan tiap excerpt secara terpisah satu-satu. Gabungkan menjadi satu penjelasan yang mengalir, dengan menjelaskan bagaimana bagian-bagian tersebut saling berkaitan.
 - **Info yang tumpang tindih.** Jika beberapa excerpt menyebutkan fakta yang sama, gabungkan menjadi satu pernyataan — jangan diulang beberapa kali dengan sitasi berbeda.
 - **Info yang tampak bertentangan.** Jika dua excerpt memberi informasi yang tidak konsistent satu sama lain, jangan diam-diam memilih salah satu — sebutkan secara singkat bahwa dokumen menyebutkan hal yang berbeda pada bagian yang berbeda, sertakan kedua sitasinya.
+- **OCR dan Gemini Vision.** Header excerpt menandai asal informasi serta gambar asalnya. OCR dan Vision dari gambar yang sama adalah dua pembacaan atas satu bukti, bukan dua sumber independen. Jika jumlah opsi, angka, atau nama berbeda, jangan gabungkan keduanya menjadi daftar yang tampak pasti. Sebutkan perbedaannya dan nyatakan bagian yang belum dapat dipastikan dari dokumen.
+- Skor keyakinan OCR mengukur pengenalan teks saja, bukan kebenaran fakta. Jangan menjadikannya satu-satunya alasan untuk mengabaikan analisis visual atau teks dokumen.
 - **Urutan/alur.** Jika pertanyaan menyangkut proses atau tahapan, susun jawaban mengikuti urutan logis prosesnya (bukan urutan kemunculan excerpt), meskipun penjelasan tiap tahap berasal dari excerpt yang berbeda-beda.
 
 Contoh:
@@ -180,8 +186,17 @@ KONTEKS DOKUMEN
 OCR_LANG = os.getenv("OCR_LANG", "id")
 OCR_USE_GPU = os.getenv("OCR_USE_GPU", "False") == "True"
 OCR_DEVICE = "gpu" if OCR_USE_GPU else "cpu"
+OCR_USE_DOC_ORIENTATION = os.getenv("OCR_USE_DOC_ORIENTATION", "False").lower() == "true"
+OCR_USE_DOC_UNWARPING = os.getenv("OCR_USE_DOC_UNWARPING", "False").lower() == "true"
+OCR_USE_TEXTLINE_ORIENTATION = os.getenv(
+    "OCR_USE_TEXTLINE_ORIENTATION", "True"
+).lower() == "true"
 OCR_PDF_MIN_TEXT_CHARS = int(os.getenv("OCR_PDF_MIN_TEXT_CHARS", "80"))
 OCR_PDF_DPI = int(os.getenv("OCR_PDF_DPI", "250"))
+VISION_PDF_MIN_IMAGE_PIXELS = int(os.getenv("VISION_PDF_MIN_IMAGE_PIXELS", "20000"))
+VISION_PDF_MAX_IMAGES_PER_PAGE = int(os.getenv("VISION_PDF_MAX_IMAGES_PER_PAGE", "4"))
+VISION_DOCX_MIN_IMAGE_PIXELS = int(os.getenv("VISION_DOCX_MIN_IMAGE_PIXELS", "20000"))
+VISION_DOCX_MAX_IMAGES = int(os.getenv("VISION_DOCX_MAX_IMAGES", "15"))
 
 # Poppler binary path for Windows (directory containing pdftoppm.exe)
 POPPLER_PATH = str(Path(__file__).resolve().parent.parent / "poppler_bin" / "poppler-26.07.0" / "Library" / "bin")

@@ -61,6 +61,8 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MAX_ATTEMPTS: ${GEMINI_MAX_ATTEMPTS:-2}
+      GEMINI_RETRY_DELAY_SECONDS: ${GEMINI_RETRY_DELAY_SECONDS:-1}
       VISION_ENABLED: ${VISION_ENABLED:-False}
       GEMINI_VISION_MODEL: ${GEMINI_VISION_MODEL:-gemini-3.1-flash-lite}
       HF_HOME: /app/models/huggingface
@@ -82,7 +84,7 @@ services:
     image: lumina-backend:latest
     container_name: lumina-django-celery
     restart: unless-stopped
-    command: celery -A lumina worker --loglevel=info
+    command: celery -A lumina worker --loglevel=info --concurrency=1
     volumes:
       - ./backend:/app
       - ./models:/app/models
@@ -101,6 +103,10 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       VISION_ENABLED: ${VISION_ENABLED:-False}
       GEMINI_VISION_MODEL: ${GEMINI_VISION_MODEL:-gemini-3.1-flash-lite}
+      OCR_USE_DOC_ORIENTATION: ${OCR_USE_DOC_ORIENTATION:-False}
+      OCR_USE_DOC_UNWARPING: ${OCR_USE_DOC_UNWARPING:-False}
+      OCR_USE_TEXTLINE_ORIENTATION: ${OCR_USE_TEXTLINE_ORIENTATION:-True}
+      VISION_DOCX_MAX_IMAGES: ${VISION_DOCX_MAX_IMAGES:-15}
       HF_HOME: /app/models/huggingface
       TRANSFORMERS_CACHE: /app/models/huggingface/hub
       SENTENCE_TRANSFORMERS_HOME: /app/models/sentence_transformers

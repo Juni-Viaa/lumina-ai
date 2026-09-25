@@ -41,6 +41,7 @@ static/*
 backend/documents/*.pdf
 backend/documents/*.txt
 backend/documents/*.docx
+backend/documents/*.png
 
 # _____________________________
 # Environment Variables
@@ -148,6 +149,7 @@ vectorstore/
 .settings/
 *.sublime-project
 *.sublime-workspace
+*.code-workspace
 
 # Jupyter Notebook
 .ipynb_checkpoints
