@@ -77,8 +77,60 @@ export default function DashboardPage() {
             }
         }
 
+        function handleOpenHistory(e: Event) {
+            const detail = (e as CustomEvent<{ id: number }>).detail;
+            if (!detail?.id) return;
+
+            handleNewChat();
+            setLoading(true);
+
+            api
+                .get<{
+                    query_detail: {
+                        query_text: string;
+                        display_title: string;
+                        response_time_ms: number | null;
+                        created_at: string;
+                        status: string;
+                        user_username: string;
+                    };
+                    answer_detail: {
+                        answer_text: string;
+                        sources: Source[] | null;
+                        created_at: string;
+                    } | null;
+                }>(`/history/${detail.id}/`, { timeout: 10000 })
+                .then((data) => {
+                    const userMsg: ChatMessage = {
+                        id: ++idCounter.current,
+                        role: "user",
+                        content: data.query_detail.query_text,
+                    };
+                    setMessages([userMsg]);
+
+                    if (data.answer_detail) {
+                        const assistantMsg: ChatMessage = {
+                            id: ++idCounter.current,
+                            role: "assistant",
+                            content: data.answer_detail.answer_text,
+                            sources: (data.answer_detail.sources as Source[] | null) ?? [],
+                            responseTimeMs: data.query_detail.response_time_ms ?? undefined,
+                        };
+                        setMessages([userMsg, assistantMsg]);
+                    }
+                })
+                .catch(() => {
+                    setError("Gagal memuat riwayat percakapan.");
+                })
+                .finally(() => setLoading(false));
+        }
+
         window.addEventListener("lumina:new-chat", handleNewChat);
-        return () => window.removeEventListener("lumina:new-chat", handleNewChat);
+        window.addEventListener("lumina:open-history", handleOpenHistory);
+        return () => {
+            window.removeEventListener("lumina:new-chat", handleNewChat);
+            window.removeEventListener("lumina:open-history", handleOpenHistory);
+        };
     }, []);
 
     useEffect(() => {

@@ -13,19 +13,15 @@ class QuerySerializer(serializers.ModelSerializer):
         model = Query
         fields = [
             "id",
-            "user",
-            "user_username",
             "query_text",
             "query_title",
             "display_title",
             "status",
-            "current_step",
             "response_time_ms",
             "created_at",
-            "updated_at",
-            "deleted_at",
+            "user_username",
         ]
-        read_only_fields = ["id", "created_at", "updated_at", "deleted_at"]
+        read_only_fields = fields
 
     def get_display_title(self, obj: Query) -> str:
         """Mengembalikan judul query, fallback ke potongan query_text."""
@@ -38,18 +34,28 @@ class QuerySerializer(serializers.ModelSerializer):
 class AnswerSerializer(serializers.ModelSerializer):
     """Serializer untuk model Answer."""
 
+    sources = serializers.SerializerMethodField()
+
     class Meta:
         model = Answer
         fields = [
             "id",
-            "query",
             "answer_text",
             "sources",
             "created_at",
-            "updated_at",
-            "deleted_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at", "deleted_at"]
+        read_only_fields = fields
+
+    def get_sources(self, obj: Answer) -> list | None:
+        """Limit sources size untuk performa."""
+        if not obj.sources:
+            return None
+        # Batasi maksimal 5 sources, potong excerpt panjang
+        limited = obj.sources[:5]
+        for s in limited:
+            if isinstance(s.get("excerpt"), str) and len(s["excerpt"]) > 500:
+                s["excerpt"] = s["excerpt"][:500] + "…"
+        return limited
 
 
 class HistorySerializer(serializers.ModelSerializer):

@@ -201,11 +201,13 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                 Hari ini
                             </div>
                             {groupedHistory.today.map((h) => (
-                                <Link
+                                <button
                                     key={h.id}
-                                    href="/history"
-                                    onClick={onClose}
-                                    className={`flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] text-blue-950/70 transition-all hover:bg-white/55 hover:text-blue-700 ${
+                                    onClick={() => {
+                                        window.dispatchEvent(new CustomEvent("lumina:open-history", { detail: { id: h.id } }));
+                                        onClose();
+                                    }}
+                                    className={`flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] text-blue-950/70 transition-all hover:bg-white/55 hover:text-blue-700 w-full text-left ${
                                         h.id === newHistoryId ? "animate-pulse bg-blue-50/50" : ""
                                     }`}
                                     title={h.title}
@@ -214,7 +216,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                     <span className={`truncate ${h.id === newHistoryId ? "typing-animation" : ""}`}>
                                         {h.title}
                                     </span>
-                                </Link>
+                                </button>
                             ))}
                         </>
                     )}
@@ -224,11 +226,13 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                 Kemarin
                             </div>
                             {groupedHistory.yesterday.map((h) => (
-                                <Link
+                                <button
                                     key={h.id}
-                                    href="/history"
-                                    onClick={onClose}
-                                    className={`flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] text-blue-950/70 transition-all hover:bg-white/55 hover:text-blue-700 ${
+                                    onClick={() => {
+                                        window.dispatchEvent(new CustomEvent("lumina:open-history", { detail: { id: h.id } }));
+                                        onClose();
+                                    }}
+                                    className={`flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] text-blue-950/70 transition-all hover:bg-white/55 hover:text-blue-700 w-full text-left ${
                                         h.id === newHistoryId ? "animate-pulse bg-blue-50/50" : ""
                                     }`}
                                     title={h.title}
@@ -237,7 +241,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                     <span className={`truncate ${h.id === newHistoryId ? "typing-animation" : ""}`}>
                                         {h.title}
                                     </span>
-                                </Link>
+                                </button>
                             ))}
                         </>
                     )}
@@ -247,11 +251,13 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                 Lebih lama
                             </div>
                             {groupedHistory.older.map((h) => (
-                                <Link
+                                <button
                                     key={h.id}
-                                    href="/history"
-                                    onClick={onClose}
-                                    className={`flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] text-blue-950/70 transition-all hover:bg-white/55 hover:text-blue-700 ${
+                                    onClick={() => {
+                                        window.dispatchEvent(new CustomEvent("lumina:open-history", { detail: { id: h.id } }));
+                                        onClose();
+                                    }}
+                                    className={`flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] text-blue-950/70 transition-all hover:bg-white/55 hover:text-blue-700 w-full text-left ${
                                         h.id === newHistoryId ? "animate-pulse bg-blue-50/50" : ""
                                     }`}
                                     title={h.title}
@@ -260,7 +266,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                     <span className={`truncate ${h.id === newHistoryId ? "typing-animation" : ""}`}>
                                         {h.title}
                                     </span>
-                                </Link>
+                                </button>
                             ))}
                         </>
                     )}

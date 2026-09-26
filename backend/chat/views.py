@@ -159,6 +159,9 @@ class HistoryViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         """Filter riwayat berdasarkan user yang sedang login."""
         user = self.request.user
+        base_qs = History.objects.select_related(
+            "query", "query__user", "answer", "answer__query", "user"
+        ).order_by("-id")
         if user.role == "admin":
-            return History.objects.select_related("query", "answer", "user").order_by("-id")
-        return History.objects.filter(user=user).select_related("query", "answer", "user").order_by("-id")
+            return base_qs
+        return base_qs.filter(user=user)
