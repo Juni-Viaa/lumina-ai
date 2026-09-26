@@ -203,3 +203,4 @@ htmlcov/
 # ..................................
 .opencode
 next-env.d.ts
+opencode.jsonc
