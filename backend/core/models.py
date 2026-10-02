@@ -1,4 +1,6 @@
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
+from django.contrib.postgres.indexes import GinIndex
+from django.contrib.postgres.search import SearchVectorField
 from django.db import models
 from pgvector.django import VectorField
 
@@ -89,7 +91,7 @@ class Document(models.Model):
 
 
 class Chunk(models.Model):
-    """Model untuk menyimpan potongan teks dan embedding vektornya (tabel `chunks`)."""
+    """Model untuk menyimpan potongan teks, embedding vektornya, dan vektor pencarian full‑text (tabel `chunks`)."""
 
     document = models.ForeignKey(
         Document,
@@ -101,6 +103,8 @@ class Chunk(models.Model):
     page = models.IntegerField(null=True, blank=True)
     # 1024 dimensi -> model 'intfloat/multilingual-e5-large'
     embedding = VectorField(dimensions=1024, null=True, blank=True)
+    # Full‑text search vector (tsvector)
+    search_vector = SearchVectorField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
@@ -110,6 +114,7 @@ class Chunk(models.Model):
         indexes = [
             models.Index(fields=["document"]),
             models.Index(fields=["page"]),
+            GinIndex(fields=["search_vector"], name="chunks_search_vector_gin"),
         ]
 
     def __str__(self):
@@ -237,7 +242,7 @@ class IngestLog(models.Model):
         indexes = [
             models.Index(fields=["document", "created_at"]),
             models.Index(fields=["document", "session_id"]),
-            models.Index(fields=["document", "step", "status"]),
+            models.Index(fields=["document", "step", "status"], name="core_ingest_doc_step_stat_idx"),
         ]
 
     def __str__(self):

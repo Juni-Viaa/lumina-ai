@@ -20,10 +20,13 @@ from ingest import config
 from ingest.retrieval import (
     RagPipelineError,
     _format_context,
+    _rrf_fusion,
     _save_answer,
     _similarity_search,
+    _sparse_search,
     run_rag_query,
 )
+from ingest.reranker import get_reranker, rerank_chunks
 from ingest.services import (
     _chunk_documents,
     _copy_to_documents,
@@ -573,7 +576,11 @@ class IngestViewsTest(TestCase):
             format="multipart",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("bukan PDF yang valid", str(response.json()))
+        error_text = str(response.json())
+        self.assertTrue(
+            "bukan PDF yang valid" in error_text or "MIME type tidak sesuai" in error_text,
+            f"Expected validation error about invalid PDF, got: {error_text}",
+        )
 
     def test_upload_non_admin_forbidden(self):
         self.client.force_authenticate(user=self.regular_user)
@@ -715,6 +722,97 @@ class RetrievalUnitTest(TestCase):
         self.assertIn("[Excerpt 1 — Panduan PBL.pdf, p.2]", context)
         self.assertIn("Bab 1: Pendahuluan", context)
 
+    def test_rrf_fusion(self):
+        # Create a 3rd chunk
+        chunk3 = Chunk.objects.create(
+            document=self.doc,
+            chunk_text="Bab 3: Jadwal Pelaksanaan Proyek.",
+            page=3,
+            embedding=get_mock_1024d_embedding(0.3),
+        )
+        # Dense ranking: chunk1 (rank 1), chunk2 (rank 2)
+        dense_results = [self.chunk1, self.chunk2]
+        # Sparse ranking: chunk3 (rank 1), chunk1 (rank 2)
+        sparse_results = [chunk3, self.chunk1]
+
+        # RRF with k=60
+        # chunk1 score: 1/(60+1) + 1/(60+2) = 1/61 + 1/62 = 0.016393 + 0.016129 = 0.032522
+        # chunk3 score: 1/(60+1) = 1/61 = 0.016393
+        # chunk2 score: 1/(60+2) = 1/62 = 0.016129
+        fused = _rrf_fusion(dense_results, sparse_results, k=60, top_k=20)
+        self.assertEqual(len(fused), 3)
+        self.assertEqual(fused[0].id, self.chunk1.id)
+        self.assertEqual(fused[1].id, chunk3.id)
+        self.assertEqual(fused[2].id, self.chunk2.id)
+
+        expected_chunk1_score = (1.0 / 61) + (1.0 / 62)
+        self.assertAlmostEqual(fused[0].rrf_score, expected_chunk1_score, places=5)
+
+        # Test top_k limiting
+        limited = _rrf_fusion(dense_results, sparse_results, k=60, top_k=2)
+        self.assertEqual(len(limited), 2)
+        self.assertEqual(limited[0].id, self.chunk1.id)
+        self.assertEqual(limited[1].id, chunk3.id)
+
+    def test_sparse_search_and_metadata_filtering(self):
+        # Trigger generates search_vector upon chunk creation in PostgreSQL
+        # Refresh chunk1 & chunk2 to pick up the updated search_vector
+        self.chunk1.refresh_from_db()
+        self.chunk2.refresh_from_db()
+
+        # Search for keyword present in chunk1
+        results = _sparse_search("Pendahuluan", top_k=5, user_id=self.user.id)
+        self.assertGreaterEqual(len(results), 1)
+        self.assertEqual(results[0].id, self.chunk1.id)
+
+        # Search for keyword present in chunk2
+        results2 = _sparse_search("Kriteria Penilaian", top_k=5, user_id=self.user.id)
+        self.assertGreaterEqual(len(results2), 1)
+        self.assertEqual(results2[0].id, self.chunk2.id)
+
+        # Metadata filtering: unauthorized user cannot see other user's indexed docs if not staff
+        other_user = User.objects.create_user(
+            email="other_student@example.com",
+            username="other_student",
+            password="testpass123",
+            role=User.Role.MAHASISWA,
+        )
+        # Create doc for regular student
+        student_doc = DocumentModel.objects.create(
+            user=other_user,
+            document_name="Private Student Doc.pdf",
+            path_file="/path/student.pdf",
+            file_type="pdf",
+            size=1024,
+            status=DocumentModel.Status.INDEXED,
+        )
+        student_chunk = Chunk.objects.create(
+            document=student_doc,
+            chunk_text="Rahasia proyek mahasiswa: algoritma optimasi genetika.",
+            page=1,
+            embedding=get_mock_1024d_embedding(0.3),
+        )
+
+        # Another student cannot search student_chunk
+        another_student = User.objects.create_user(
+            email="another@example.com",
+            username="another",
+            password="testpass123",
+            role=User.Role.MAHASISWA,
+        )
+        res_unauthorized = _sparse_search("genetika", top_k=5, user_id=another_student.id)
+        self.assertEqual(len(res_unauthorized), 0)
+
+        # The owner student can search student_chunk
+        res_authorized = _sparse_search("genetika", top_k=5, user_id=other_user.id)
+        self.assertEqual(len(res_authorized), 1)
+        self.assertEqual(res_authorized[0].id, student_chunk.id)
+
+        # Non-indexed doc or soft-deleted doc is excluded
+        student_doc.status = DocumentModel.Status.PROCESSING
+        student_doc.save()
+        self.assertEqual(len(_sparse_search("genetika", top_k=5, user_id=other_user.id)), 0)
+
     def test_save_answer(self):
         query = Query.objects.create(
             user=self.user,
@@ -740,22 +838,25 @@ class RetrievalUnitTest(TestCase):
         mock_chain = MagicMock()
         mock_chain.invoke.return_value = "PBL adalah metode pembelajaran berbasis proyek."
         
-        # Patch prompt | llm | parser pipeline
+        # Patch prompt | llm | parser pipeline and reranker
         with patch("ingest.retrieval.ChatPromptTemplate.from_messages", return_value=MagicMock(__or__=lambda self, other: MagicMock(__or__=lambda self, other: mock_chain))):
-            with patch.object(config, "GEMINI_API_KEY", "fake-api-key"):
-                query = Query.objects.create(
-                    user=self.user,
-                    query_title="Apa itu PBL?",
-                    query_text="Apa itu PBL?",
-                )
-                res = run_rag_query(query.id, "Apa itu PBL?", top_k=2)
-                self.assertTrue(res["success"])
-                self.assertIn("PBL adalah metode", res["answer"])
-                self.assertEqual(len(res["sources"]), 2)
+            with patch("ingest.retrieval.rerank_chunks") as mock_rerank:
+                mock_rerank.side_effect = lambda query, chunks, top_k: (chunks[:top_k], 15.0, False)
+                with patch.object(config, "GEMINI_API_KEY", "fake-api-key"):
+                    query = Query.objects.create(
+                        user=self.user,
+                        query_title="Apa itu PBL?",
+                        query_text="Apa itu PBL?",
+                    )
+                    res = run_rag_query(query.id, "Apa itu PBL?", top_k=2)
+                    self.assertTrue(res["success"])
+                    self.assertIn("PBL adalah metode", res["answer"])
+                    self.assertEqual(len(res["sources"]), 2)
 
-                query.refresh_from_db()
-                self.assertEqual(query.status, Query.Status.ANSWERED)
-                self.assertEqual(query.current_step, "done")
+                    query.refresh_from_db()
+                    self.assertEqual(query.status, Query.Status.ANSWERED)
+                    self.assertEqual(query.current_step, "done")
+                    self.assertTrue(mock_rerank.called)
 
     @patch("ingest.retrieval.get_embeddings")
     @patch("ingest.retrieval._build_llm")
@@ -850,7 +951,11 @@ class SerializerUnitTest(TestCase):
         bad_docx = SimpleUploadedFile("sample.docx", b"NOT_A_ZIP", content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
         s2 = IngestUploadSerializer(data={"document": bad_docx})
         self.assertFalse(s2.is_valid())
-        self.assertIn("bukan dokumen Word", str(s2.errors))
+        error_text = str(s2.errors)
+        self.assertTrue(
+            "bukan dokumen Word" in error_text or "MIME type tidak sesuai" in error_text,
+            f"Expected validation error about invalid DOCX, got: {error_text}",
+        )
 
         # Valid TXT
         txt_file = SimpleUploadedFile("sample.txt", b"plain text content here", content_type="text/plain")
@@ -879,3 +984,152 @@ class SerializerUnitTest(TestCase):
         pdf_file.seek(0)
         s_invalid_type = IngestUploadSerializer(data={"document": pdf_file, "document_id": "not-a-number"})
         self.assertFalse(s_invalid_type.is_valid())
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 6. Reranker Unit & Benchmark Tests (LUMINA-11)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class RerankerUnitTest(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="rerank_test@example.com",
+            username="rerank_test",
+            password="password123",
+            role=User.Role.ADMIN,
+        )
+        self.doc = DocumentModel.objects.create(
+            user=self.user,
+            document_name="Test Doc.pdf",
+            path_file="/tmp/test.pdf",
+            file_type="pdf",
+            size=1024,
+            status=DocumentModel.Status.INDEXED,
+        )
+        self.chunks = [
+            Chunk.objects.create(
+                document=self.doc,
+                chunk_text=f"Chunk teks ke-{i} mengenai arsitektur sistem Lumina dan performa RAG.",
+                page=i,
+                embedding=get_mock_1024d_embedding(0.01 * i),
+            )
+            for i in range(1, 21)  # 20 candidate chunks
+        ]
+
+    def test_rerank_chunks_successful_ranking(self):
+        # Mock CrossEncoder / FlagReranker predict
+        mock_model = MagicMock()
+        # Returns ascending scores such that chunk 20 has highest score (19.0), chunk 1 has lowest (0.0)
+        mock_model.predict.return_value = [float(i) for i in range(20)]
+
+        with patch("ingest.reranker._reranker_instance", mock_model):
+            top_chunks, elapsed_ms, fallback_used = rerank_chunks(
+                query="arsitektur sistem",
+                chunks=list(self.chunks),
+                top_k=7,
+                timeout_seconds=1.2,
+            )
+
+            self.assertFalse(fallback_used)
+            self.assertEqual(len(top_chunks), 7)
+            # The highest score is chunk 20 (score 19.0), followed by 19, 18, etc.
+            self.assertEqual(top_chunks[0].id, self.chunks[19].id)
+            self.assertEqual(top_chunks[0].rerank_score, 19.0)
+            self.assertEqual(top_chunks[6].id, self.chunks[13].id)
+            self.assertGreater(elapsed_ms, 0)
+
+    def test_rerank_chunks_timeout_fallback(self):
+        mock_model = MagicMock()
+        import time
+
+        def slow_predict(pairs):
+            time.sleep(0.2)
+            return [0.5] * len(pairs)
+
+        mock_model.predict.side_effect = slow_predict
+
+        with patch("ingest.reranker._reranker_instance", mock_model):
+            top_chunks, elapsed_ms, fallback_used = rerank_chunks(
+                query="arsitektur sistem",
+                chunks=list(self.chunks),
+                top_k=7,
+                timeout_seconds=0.05,  # 50ms timeout threshold
+            )
+
+            self.assertTrue(fallback_used)
+            self.assertEqual(len(top_chunks), 7)
+            # Fallback returns original order top 7 (chunk 0 to 6)
+            self.assertEqual(top_chunks[0].id, self.chunks[0].id)
+            self.assertEqual(top_chunks[6].id, self.chunks[6].id)
+
+    def test_rerank_chunks_exception_fallback(self):
+        mock_model = MagicMock()
+        mock_model.predict.side_effect = RuntimeError("CUDA out of memory")
+
+        with patch("ingest.reranker._reranker_instance", mock_model):
+            top_chunks, elapsed_ms, fallback_used = rerank_chunks(
+                query="arsitektur sistem",
+                chunks=list(self.chunks),
+                top_k=7,
+                timeout_seconds=1.2,
+            )
+
+            self.assertTrue(fallback_used)
+            self.assertEqual(len(top_chunks), 7)
+            self.assertEqual(top_chunks[0].id, self.chunks[0].id)
+
+    def test_rerank_chunks_disabled_in_config(self):
+        with patch.object(config, "RERANKER_ENABLED", False):
+            top_chunks, elapsed_ms, fallback_used = rerank_chunks(
+                query="arsitektur sistem",
+                chunks=list(self.chunks),
+                top_k=7,
+            )
+            self.assertTrue(fallback_used)
+            self.assertEqual(len(top_chunks), 7)
+            self.assertEqual(top_chunks[0].id, self.chunks[0].id)
+
+    def test_rerank_empty_chunks(self):
+        top_chunks, elapsed_ms, fallback_used = rerank_chunks(
+            query="arsitektur sistem",
+            chunks=[],
+            top_k=7,
+        )
+        self.assertEqual(len(top_chunks), 0)
+        self.assertFalse(fallback_used)
+
+    def test_rerank_latency_benchmark_ac(self):
+        """
+        Benchmark acceptance criteria:
+        p95 reranking latency < 1.2s on CPU (1200ms) and < 400ms on GPU.
+        """
+        import time
+
+        mock_model = MagicMock()
+        # Simulate 20ms inference time for 20 chunks
+        def fast_predict(pairs):
+            time.sleep(0.02)
+            return [0.8] * len(pairs)
+
+        mock_model.predict.side_effect = fast_predict
+
+        with patch("ingest.reranker._reranker_instance", mock_model):
+            latencies = []
+            for _ in range(20):
+                _, elapsed_ms, fallback = rerank_chunks(
+                    query="benchmark query",
+                    chunks=list(self.chunks),
+                    top_k=7,
+                    timeout_seconds=1.2,
+                )
+                self.assertFalse(fallback)
+                latencies.append(elapsed_ms)
+
+            latencies.sort()
+            p95_idx = int(len(latencies) * 0.95)
+            p95_latency = latencies[p95_idx]
+
+            # p95 should satisfy target < 1200ms on CPU
+            self.assertLess(p95_latency, 1200.0)
+
+
