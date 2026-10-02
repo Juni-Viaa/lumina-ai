@@ -18,8 +18,9 @@ langchain-text-splitters
 langchain-huggingface
 langchain-google-genai
 
-# Embedding model (intfloat/multilingual-e5-large)
+# Embedding model (intfloat/multilingual-e5-large) and Reranker (BAAI/bge-reranker-v2-m3)
 sentence-transformers
+FlagEmbedding; sys_platform != 'win32'
 
 # Document processing (PDF/DOCX/TXT)
 pypdf

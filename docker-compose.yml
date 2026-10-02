@@ -66,6 +66,8 @@ services:
       SENTENCE_TRANSFORMERS_HOME: /app/models/sentence_transformers
       TORCH_HOME: /app/models/torch
       EMBEDDING_MODEL_CACHE_DIR: /app/models
+      HF_HUB_ENABLE_HF_TRANSFER: "0"
+      HF_HUB_DISABLE_XET: "1"
     depends_on:
       postgres:
         condition: service_healthy
@@ -102,6 +104,8 @@ services:
       SENTENCE_TRANSFORMERS_HOME: /app/models/sentence_transformers
       TORCH_HOME: /app/models/torch
       EMBEDDING_MODEL_CACHE_DIR: /app/models
+      HF_HUB_ENABLE_HF_TRANSFER: "0"
+      HF_HUB_DISABLE_XET: "1"
     depends_on:
       postgres:
         condition: service_healthy
@@ -138,6 +142,8 @@ services:
       SENTENCE_TRANSFORMERS_HOME: /app/models/sentence_transformers
       TORCH_HOME: /app/models/torch
       EMBEDDING_MODEL_CACHE_DIR: /app/models
+      HF_HUB_ENABLE_HF_TRANSFER: "0"
+      HF_HUB_DISABLE_XET: "1"
     depends_on:
       postgres:
         condition: service_healthy

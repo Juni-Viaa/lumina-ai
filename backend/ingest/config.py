@@ -34,8 +34,17 @@ EMBEDDING_DEVICE = "cpu"
 CHUNK_SIZE = 2560
 CHUNK_OVERLAP = 256
 
-# ── Retrieval ──────────────────────────────────────────────────────────────────
-TOP_K = 7
+# ── Retrieval & Reranker ───────────────────────────────────────────────────────
+TOP_K = int(os.getenv("TOP_K", "7"))
+RERANKER_INPUT_K = int(os.getenv("RERANKER_INPUT_K", "10"))
+DENSE_TOP_K = int(os.getenv("DENSE_TOP_K", "20"))
+SPARSE_TOP_K = int(os.getenv("SPARSE_TOP_K", "20"))
+RRF_K = int(os.getenv("RRF_K", "60"))
+
+RERANKER_MODEL = os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-v2-m3")
+RERANKER_DEVICE = os.getenv("RERANKER_DEVICE", "cpu")
+RERANKER_TIMEOUT_SECONDS = float(os.getenv("RERANKER_TIMEOUT_SECONDS", "5.0"))
+RERANKER_ENABLED = os.getenv("RERANKER_ENABLED", "false").lower() in ("true", "1", "yes")
 
 # ── Gemini LLM ─────────────────────────────────────────────────────────────────
 GEMINI_MODEL = "gemini-3.1-flash-lite"

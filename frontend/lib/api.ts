@@ -9,7 +9,7 @@ import { getToken, clearAuth } from "./auth";
 const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
 
-const DEFAULT_TIMEOUT_MS = 30000;
+const DEFAULT_TIMEOUT_MS = 60000;
 
 interface RequestOptions extends Omit<RequestInit, "body"> {
     body?: unknown;
@@ -125,13 +125,14 @@ async function request<T>(
 
 export const api = {
     get: <T>(path: string, options?: RequestOptions) => request<T>(path, options),
-    post: <T>(path: string, body: unknown) =>
-        request<T>(path, { method: "POST", body }),
-    patch: <T>(path: string, body: unknown) =>
-        request<T>(path, { method: "PATCH", body }),
-    delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
-    uploadFile: <T>(path: string, formData: FormData) =>
-        request<T>(path, { method: "POST", body: formData, isFormData: true }),
+    post: <T>(path: string, body: unknown, options?: Omit<RequestOptions, "body">) =>
+        request<T>(path, { method: "POST", body, ...options }),
+    patch: <T>(path: string, body: unknown, options?: Omit<RequestOptions, "body">) =>
+        request<T>(path, { method: "PATCH", body, ...options }),
+    delete: <T>(path: string, options?: RequestOptions) =>
+        request<T>(path, { method: "DELETE", ...options }),
+    uploadFile: <T>(path: string, formData: FormData, options?: Omit<RequestOptions, "body" | "isFormData">) =>
+        request<T>(path, { method: "POST", body: formData, isFormData: true, ...options }),
 };
 
 export type { RequestOptions };
