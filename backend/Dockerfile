@@ -34,12 +34,13 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # Copy the rest of the application
 COPY . .
 
-# Copy warmup script
+# Copy warmup script and entrypoint
 COPY warmup.py .
+COPY entrypoint.sh .
 
 # Expose Django development server port
 EXPOSE 8000
 
-# Entrypoint: warmup models, then run migrations and start server
-ENTRYPOINT ["python", "warmup.py"]
+# Entrypoint: conditional warmup, then exec CMD
+ENTRYPOINT ["sh", "/app/entrypoint.sh"]
 CMD ["sh", "-c", "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"]

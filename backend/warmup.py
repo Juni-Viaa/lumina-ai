@@ -17,7 +17,7 @@ def warmup_models():
     os.makedirs(cache_dir, exist_ok=True)
 
     # Setup Django settings
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "lumina.settings.development")
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "lumina.settings")
     import django
     django.setup()
 

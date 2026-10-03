@@ -45,11 +45,12 @@ services:
     volumes:
       - ./backend:/app
       - ./models:/app/models
+      - backend_app_data:/app/backend
     ports:
       - "8000:8000"
     environment:
       DJANGO_ENV: development
-      DJANGO_SECRET_KEY: django-insecure-w@)$18!m6_vhuaxt8wnkua_ec_&&@el^qnza^qi8&hzx6s4w&9
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-}
       DJANGO_DEBUG: "True"
       DJANGO_ALLOWED_HOSTS: "*"
       DB_NAME: lumina
@@ -61,6 +62,7 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      HF_TOKEN: ${HF_TOKEN:-}
       HF_HOME: /app/models/huggingface
       TRANSFORMERS_CACHE: /app/models/huggingface/hub
       SENTENCE_TRANSFORMERS_HOME: /app/models/sentence_transformers
@@ -68,6 +70,7 @@ services:
       EMBEDDING_MODEL_CACHE_DIR: /app/models
       HF_HUB_ENABLE_HF_TRANSFER: "0"
       HF_HUB_DISABLE_XET: "1"
+      RUN_WARMUP: "1"
     depends_on:
       postgres:
         condition: service_healthy
@@ -86,9 +89,10 @@ services:
     volumes:
       - ./backend:/app
       - ./models:/app/models
+      - celery_app_data:/app/backend
     environment:
       DJANGO_ENV: development
-      DJANGO_SECRET_KEY: django-insecure-w@)$18!m6_vhuaxt8wnkua_ec_&&@el^qnza^qi8&hzx6s4w&9
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-}
       DJANGO_DEBUG: "True"
       DJANGO_ALLOWED_HOSTS: "*"
       DB_NAME: lumina
@@ -99,6 +103,7 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      HF_TOKEN: ${HF_TOKEN:-}
       HF_HOME: /app/models/huggingface
       TRANSFORMERS_CACHE: /app/models/huggingface/hub
       SENTENCE_TRANSFORMERS_HOME: /app/models/sentence_transformers
@@ -106,6 +111,7 @@ services:
       EMBEDDING_MODEL_CACHE_DIR: /app/models
       HF_HUB_ENABLE_HF_TRANSFER: "0"
       HF_HUB_DISABLE_XET: "1"
+      RUN_WARMUP: "1"
     depends_on:
       postgres:
         condition: service_healthy
@@ -120,13 +126,14 @@ services:
     image: lumina-backend:latest
     container_name: lumina-django-celery-beat
     restart: unless-stopped
-    command: celery -A lumina beat --loglevel=info
+    command: celery -A lumina beat --loglevel=info --schedule /tmp/celerybeat-schedule
     volumes:
       - ./backend:/app
       - ./models:/app/models
+      - celery_beat_data:/tmp
     environment:
       DJANGO_ENV: development
-      DJANGO_SECRET_KEY: django-insecure-w@)$18!m6_vhuaxt8wnkua_ec_&&@el^qnza^qi8&hzx6s4w&9
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-}
       DJANGO_DEBUG: "True"
       DJANGO_ALLOWED_HOSTS: "*"
       DB_NAME: lumina
@@ -137,6 +144,7 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      HF_TOKEN: ${HF_TOKEN:-}
       HF_HOME: /app/models/huggingface
       TRANSFORMERS_CACHE: /app/models/huggingface/hub
       SENTENCE_TRANSFORMERS_HOME: /app/models/sentence_transformers
@@ -173,3 +181,6 @@ services:
 
 volumes:
   pgvector_data:
+  backend_app_data:
+  celery_app_data:
+  celery_beat_data:
