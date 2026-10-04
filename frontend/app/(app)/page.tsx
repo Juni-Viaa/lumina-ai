@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import Image from "next/image";
 
 import { api } from "@/lib/api";
@@ -20,6 +20,7 @@ interface AskResponse {
     answer: string;
     response_time_ms: number;
     sources: Source[];
+    conversation_id?: number;
 }
 
 interface ChatMessage {
@@ -51,6 +52,7 @@ export default function DashboardPage() {
     const [documents, setDocuments] = useState<DocumentItem[]>([]);
     const [username, setUsername] = useState("Pengguna");
     const [error, setError] = useState<string | null>(null);
+    const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
     const idCounter = useRef(0);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -58,6 +60,11 @@ export default function DashboardPage() {
     useEffect(() => {
         const user = getUser();
         if (user?.username) setUsername(user.username);
+        
+        const savedConvId = localStorage.getItem("activeConversationId");
+        if (savedConvId) {
+            setActiveConversationId(Number(savedConvId));
+        }
 
         api
             .get<Paginated<DocumentItem>>("/documents/")
@@ -71,13 +78,15 @@ export default function DashboardPage() {
             setQuestion("");
             setError(null);
             setLoading(false);
+            setActiveConversationId(null);
+            localStorage.removeItem("activeConversationId");
             idCounter.current = 0;
             if (textareaRef.current) {
                 textareaRef.current.style.height = "auto";
             }
         }
 
-        function handleOpenHistory(e: Event) {
+        function handleOpenConversation(e: Event) {
             const detail = (e as CustomEvent<{ id: number }>).detail;
             if (!detail?.id) return;
 
@@ -86,50 +95,35 @@ export default function DashboardPage() {
 
             api
                 .get<{
-                    query_detail: {
-                        query_text: string;
-                        display_title: string;
-                        response_time_ms: number | null;
+                    conversation_id: number;
+                    messages: {
+                        id: number;
+                        role: "user" | "assistant";
+                        content: string;
                         created_at: string;
-                        status: string;
-                        user_username: string;
-                    };
-                    answer_detail: {
-                        answer_text: string;
-                        sources: Source[] | null;
-                        created_at: string;
-                    } | null;
-                }>(`/history/${detail.id}/`, { timeout: 10000 })
+                    }[];
+                }>(`/conversations/${detail.id}/messages/`, { timeout: 10000 })
                 .then((data) => {
-                    const userMsg: ChatMessage = {
+                    setActiveConversationId(data.conversation_id);
+                    localStorage.setItem("activeConversationId", String(data.conversation_id));
+                    const loadedMessages = data.messages.map((msg) => ({
                         id: ++idCounter.current,
-                        role: "user",
-                        content: data.query_detail.query_text,
-                    };
-                    setMessages([userMsg]);
-
-                    if (data.answer_detail) {
-                        const assistantMsg: ChatMessage = {
-                            id: ++idCounter.current,
-                            role: "assistant",
-                            content: data.answer_detail.answer_text,
-                            sources: (data.answer_detail.sources as Source[] | null) ?? [],
-                            responseTimeMs: data.query_detail.response_time_ms ?? undefined,
-                        };
-                        setMessages([userMsg, assistantMsg]);
-                    }
+                        role: msg.role as "user" | "assistant",
+                        content: msg.content,
+                    }));
+                    setMessages(loadedMessages);
                 })
                 .catch(() => {
-                    setError("Gagal memuat riwayat percakapan.");
+                    setError("Gagal memuat percakapan.");
                 })
                 .finally(() => setLoading(false));
         }
 
         window.addEventListener("lumina:new-chat", handleNewChat);
-        window.addEventListener("lumina:open-history", handleOpenHistory);
+        window.addEventListener("lumina:open-conversation", handleOpenConversation);
         return () => {
             window.removeEventListener("lumina:new-chat", handleNewChat);
-            window.removeEventListener("lumina:open-history", handleOpenHistory);
+            window.removeEventListener("lumina:open-conversation", handleOpenConversation);
         };
     }, []);
 
@@ -163,7 +157,20 @@ export default function DashboardPage() {
         }
 
         try {
-            const data = await api.post<AskResponse>("/ask/", { question: text });
+            const payload: { question: string; conversation_id?: number } = { question: text };
+            
+            if (activeConversationId) {
+                payload.conversation_id = activeConversationId;
+            }
+            
+            const data = await api.post<AskResponse>("/ask/", payload);
+            
+            if (data.conversation_id && !activeConversationId) {
+                setActiveConversationId(data.conversation_id);
+                localStorage.setItem("activeConversationId", String(data.conversation_id));
+                window.dispatchEvent(new CustomEvent("lumina:conversation-created", { detail: { id: data.conversation_id, title: text.split(" ").slice(0, 8).join(" ") + (text.length > 8 ? "…" : "") } }));
+            }
+            
             const assistantMessage: ChatMessage = {
                 id: ++idCounter.current,
                 role: "assistant",

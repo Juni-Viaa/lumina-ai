@@ -20,8 +20,6 @@ class UserManager(BaseUserManager):
     def create_superuser(self, email, password=None, **extra_fields):
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
-        # Superuser otomatis ber-role admin agar menu khusus admin (mis. Upload
-        # Dokumen di frontend) aktif tanpa pengaturan manual tambahan.
         extra_fields.setdefault("role", self.model.Role.ADMIN)
         return self.create_user(email, password, **extra_fields)
 
@@ -54,6 +52,27 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email
+
+
+class Conversation(models.Model):
+    """Model percakapan (tabel `conversations`)."""
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="conversations",
+        db_column="user_id",
+    )
+    title = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "conversations"
+        ordering = ["-updated_at"]
+
+    def __str__(self):
+        return self.title
 
 
 class Document(models.Model):
@@ -101,9 +120,7 @@ class Chunk(models.Model):
     )
     chunk_text = models.TextField()
     page = models.IntegerField(null=True, blank=True)
-    # 1024 dimensi -> model 'intfloat/multilingual-e5-large'
     embedding = VectorField(dimensions=1024, null=True, blank=True)
-    # Full‑text search vector (tsvector)
     search_vector = SearchVectorField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -134,6 +151,14 @@ class Query(models.Model):
         on_delete=models.CASCADE,
         related_name="queries",
         db_column="user_id",
+    )
+    conversation = models.ForeignKey(
+        Conversation,
+        on_delete=models.CASCADE,
+        related_name="queries",
+        db_column="conversation_id",
+        null=True,
+        blank=True,
     )
     query_text = models.TextField()
     query_title = models.CharField(max_length=255)
@@ -181,6 +206,14 @@ class History(models.Model):
         on_delete=models.CASCADE,
         related_name="histories",
         db_column="user_id",
+    )
+    conversation = models.ForeignKey(
+        Conversation,
+        on_delete=models.CASCADE,
+        related_name="histories",
+        db_column="conversation_id",
+        null=True,
+        blank=True,
     )
     query = models.ForeignKey(
         Query,

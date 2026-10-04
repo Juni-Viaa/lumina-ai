@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from core.models import Query, Answer, History
+from core.models import Query, Answer, History, Conversation
 
 
 class QuerySerializer(serializers.ModelSerializer):
@@ -58,20 +58,64 @@ class AnswerSerializer(serializers.ModelSerializer):
         return limited
 
 
+class ConversationSerializer(serializers.ModelSerializer):
+    """Serializer untuk model Conversation."""
+
+    class Meta:
+        model = Conversation
+        fields = [
+            "id",
+            "title",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
+
+
+class ConversationListSerializer(serializers.ModelSerializer):
+    """Serializer untuk list conversation (dengan query title)."""
+
+    query_detail = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Conversation
+        fields = [
+            "id",
+            "title",
+            "query_detail",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
+
+    def get_query_detail(self, obj: Conversation) -> dict:
+        query = obj.queries.first()
+        if not query:
+            return None
+        return {
+            "display_title": query.query_title or query.query_text[:60] + "..." if len(query.query_text) > 60 else query.query_text,
+            "created_at": query.created_at.isoformat(),
+        }
+
+
 class HistorySerializer(serializers.ModelSerializer):
     """Serializer untuk model History."""
 
+    conversation_id = serializers.PrimaryKeyRelatedField(source="conversation", read_only=True)
     query_detail = QuerySerializer(source="query", read_only=True)
     answer_detail = AnswerSerializer(source="answer", read_only=True)
+    conversation_detail = ConversationSerializer(source="conversation", read_only=True)
 
     class Meta:
         model = History
         fields = [
             "id",
             "user",
+            "conversation_id",
+            "conversation_detail",
             "query",
             "query_detail",
             "answer",
             "answer_detail",
         ]
-        read_only_fields = ["id"]
+        read_only_fields = fields
