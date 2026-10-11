@@ -41,7 +41,7 @@ DENSE_TOP_K = int(os.getenv("DENSE_TOP_K", "20"))
 SPARSE_TOP_K = int(os.getenv("SPARSE_TOP_K", "20"))
 RRF_K = int(os.getenv("RRF_K", "60"))
 
-RERANKER_MODEL = os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-v2-m3")
+RERANKER_MODEL = os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-v2-large")
 RERANKER_DEVICE = os.getenv("RERANKER_DEVICE", "cpu")
 RERANKER_TIMEOUT_SECONDS = float(os.getenv("RERANKER_TIMEOUT_SECONDS", "5.0"))
 RERANKER_ENABLED = os.getenv("RERANKER_ENABLED", "false").lower() in ("true", "1", "yes")

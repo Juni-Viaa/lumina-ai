@@ -85,6 +85,7 @@ services:
     image: lumina-backend:latest
     container_name: lumina-django-celery
     restart: unless-stopped
+    mem_limit: 4g
     command: celery -A lumina worker --loglevel=info
     volumes:
       - ./backend:/app

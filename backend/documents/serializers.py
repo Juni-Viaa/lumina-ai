@@ -8,6 +8,7 @@ class DocumentSerializer(serializers.ModelSerializer):
 
     size_human = serializers.SerializerMethodField()
     user_username = serializers.CharField(source="user.username", read_only=True)
+    chunk_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Document
@@ -25,6 +26,7 @@ class DocumentSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "deleted_at",
+            "chunk_count",
         ]
         read_only_fields = ["id", "created_at", "updated_at", "deleted_at"]
 
@@ -37,6 +39,10 @@ class DocumentSerializer(serializers.ModelSerializer):
             return f"{round(bytes_size / 1024, 1)} KB"
         return f"{round(bytes_size / 1048576, 1)} MB"
 
+    def get_chunk_count(self, obj: Document) -> int:
+        """Mengembalikan jumlah chunk untuk dokumen ini."""
+        return obj.chunks.filter(deleted_at__isnull=True).count()
+
 
 class ChunkSerializer(serializers.ModelSerializer):
     """Serializer untuk model Chunk."""
@@ -47,6 +53,7 @@ class ChunkSerializer(serializers.ModelSerializer):
             "id",
             "document",
             "chunk_text",
+            "page",
             "created_at",
             "updated_at",
             "deleted_at",
