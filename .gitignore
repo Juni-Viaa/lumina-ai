@@ -222,3 +222,4 @@ backend/celerybeat-schedule*
 # ..................................
 .opencode
 next-env.d.ts
+opencode.jsonc

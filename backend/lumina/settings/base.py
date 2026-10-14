@@ -36,7 +36,7 @@ else:
     }
 
 # ── Security ────────────────────────────────────────────────────────────────
-SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "")
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY") or ""
 
 DEBUG = False
 
@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.postgres",
     # Third-party
     "rest_framework",
     "rest_framework.authtoken",

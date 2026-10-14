@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
-from .models import User
+from .models import User, Conversation, Query, Answer, History
 
 
 @admin.register(User)
@@ -42,3 +42,17 @@ class UserAdmin(BaseUserAdmin):
     )
 
     readonly_fields = ["created_at", "updated_at"]
+
+
+@admin.register(Conversation)
+class ConversationAdmin(admin.ModelAdmin):
+    """Admin untuk model Conversation."""
+
+    list_display = ["id", "title", "user", "created_at", "updated_at"]
+    list_filter = ["created_at", "updated_at"]
+    search_fields = ["title", "user__email"]
+    ordering = ["-updated_at"]
+    readonly_fields = ["created_at", "updated_at"]
+
+    def user(self, obj):
+        return obj.user.email

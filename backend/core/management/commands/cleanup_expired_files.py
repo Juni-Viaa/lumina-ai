@@ -75,7 +75,7 @@ class Command(BaseCommand):
                 continue
 
             stat = file_path.stat()
-            file_mtime = timezone.localtime(timezone.datetime.fromtimestamp(stat.st_mtime))
+            file_mtime = timezone.localtime(timezone.datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc))
 
             doc = Document.objects.filter(path_file__contains=file_path.name).first()
 

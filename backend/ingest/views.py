@@ -10,9 +10,11 @@ from pathlib import Path
 from django.conf import settings
 from django.utils import timezone
 from rest_framework import status
+from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.viewsets import ViewSet
 from rest_framework.views import APIView
 
 from .serializers import IngestUploadSerializer
@@ -73,6 +75,60 @@ class IngestStatusView(APIView):
                 "logs": logs,
                 "status": document.status,
             }
+        )
+
+
+class IngestViewSet(ViewSet):
+    """
+    ViewSet untuk re-ingest dokumen.
+    """
+
+    authentication_classes = [*ViewSet.authentication_classes]
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=True, methods=["post"], url_path="re-ingest")
+    def re_ingest(self, request, pk=None):
+        """Trigger re-ingest untuk dokumen yang sudah ada."""
+        if not (request.user.is_authenticated and request.user.role == "admin"):
+            return Response(
+                {"detail": "Anda tidak memiliki izin untuk melakukan re-ingest."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            document = DocumentModel.objects.get(pk=pk)
+        except DocumentModel.DoesNotExist:
+            return Response(
+                {"detail": "Dokumen tidak ditemukan."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if document.status == "processing":
+            return Response(
+                {"detail": "Dokumen sedang diproses, coba lagi nanti."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        session_id = str(uuid.uuid4())
+
+        _log_ingest(document.id, "re-init", f"Re-ingest dimulai, document_id={pk}", session_id)
+
+        run_ingest_pipeline_task.delay(
+            file_path=document.path_file,
+            original_filename=document.document_name,
+            document_id=document.id,
+            user_id=request.user.id,
+            session_id=session_id,
+        )
+
+        return Response(
+            {
+                "message": "Re-ingest berhasil dimulai.",
+                "document_id": document.id,
+                "session_id": session_id,
+                "status": "processing",
+            },
+            status=status.HTTP_202_ACCEPTED,
         )
 
 

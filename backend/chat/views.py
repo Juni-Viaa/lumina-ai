@@ -5,9 +5,9 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from core.models import Query, Answer, History
+from core.models import Query, Answer, History, Conversation
 from ingest.retrieval import RagPipelineError, run_rag_query
-from .serializers import QuerySerializer, AnswerSerializer, HistorySerializer
+from .serializers import QuerySerializer, AnswerSerializer, HistorySerializer, ConversationSerializer, ConversationListSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ def _mark_query_failed_and_log(query: Query) -> None:
         query.status = Query.Status.FAILED
         query.current_step = "error"
         query.save(update_fields=["status", "current_step", "updated_at"])
-    History.objects.get_or_create(user=query.user, query=query)
+    History.objects.get_or_create(user=query.user, conversation=query.conversation, query=query)
 
 
 def _execute_ask(query: Query, question: str) -> Response:
@@ -79,16 +79,40 @@ class AskView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # 1. Persist query row
+        # 1. Get conversation_id from request (if provided) or create a new conversation
+        conversation_id = request.data.get("conversation_id")
+
+        if conversation_id:
+            try:
+                conversation = Conversation.objects.get(id=conversation_id, user=request.user)
+            except Conversation.DoesNotExist:
+                return Response(
+                    {"detail": "Conversation not found or access denied."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+        else:
+            conversation = Conversation.objects.create(
+                user=request.user,
+                title=_make_title(question)
+            )
+
+        # 2. Persist query row
         query = Query.objects.create(
             user=request.user,
+            conversation=conversation,
             query_text=question,
             query_title=_make_title(question),
             status=Query.Status.PENDING,
         )
 
-        # 2. Run RAG pipeline
-        return _execute_ask(query, question)
+        # 3. Run RAG pipeline
+        result = _execute_ask(query, question)
+
+        # 4. Add conversation_id to all responses
+        if isinstance(result.data, dict):
+            result.data["conversation_id"] = conversation.id
+
+        return result
 
 
 class QueryViewSet(viewsets.ModelViewSet):
@@ -102,8 +126,8 @@ class QueryViewSet(viewsets.ModelViewSet):
         """Filter query berdasarkan user yang sedang login."""
         user = self.request.user
         if user.role == "admin":
-            return Query.objects.filter(deleted_at__isnull=True)
-        return Query.objects.filter(user=user, deleted_at__isnull=True)
+            return Query.objects.filter(deleted_at__isnull=True).select_related("conversation")
+        return Query.objects.filter(user=user, deleted_at__isnull=True).select_related("conversation")
 
     def perform_create(self, serializer):
         """Set user_id otomatis dari user yang sedang login."""
@@ -159,6 +183,58 @@ class HistoryViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         """Filter riwayat berdasarkan user yang sedang login."""
         user = self.request.user
+        base_qs = History.objects.select_related(
+            "conversation", "query", "query__user", "answer", "answer__query", "user"
+        ).order_by("-id")
         if user.role == "admin":
-            return History.objects.select_related("query", "answer", "user").order_by("-id")
-        return History.objects.filter(user=user).select_related("query", "answer", "user").order_by("-id")
+            return base_qs
+        return base_qs.filter(user=user)
+
+
+class ConversationViewSet(viewsets.ModelViewSet):
+    """ViewSet untuk manajemen conversation."""
+
+    queryset = Conversation.objects.all()
+    serializer_class = ConversationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        """Filter conversation berdasarkan user yang sedang login."""
+        user = self.request.user
+        if user.role == "admin":
+            return Conversation.objects.all()
+        return Conversation.objects.filter(user=user)
+
+    def perform_create(self, serializer):
+        """Set user_id otomatis dari user yang sedang login."""
+        serializer.save(user=self.request.user)
+
+    @action(detail=True, methods=["get"], url_path="messages")
+    def get_messages(self, request, pk=None):
+        """Mengambil semua message dalam conversation tertentu."""
+        conversation = self.get_object()
+
+        queries = Query.objects.filter(conversation=conversation).select_related("user").order_by("created_at")
+
+        messages = []
+        for query in queries:
+            messages.append({
+                "id": query.id,
+                "role": "user",
+                "content": query.query_text,
+                "created_at": query.created_at.isoformat(),
+            })
+
+            answers = query.answers.filter(deleted_at__isnull=True)
+            for answer in answers:
+                messages.append({
+                    "id": answer.id,
+                    "role": "assistant",
+                    "content": answer.answer_text,
+                    "created_at": answer.created_at.isoformat(),
+                })
+
+        return Response({
+            "conversation_id": conversation.id,
+            "messages": messages,
+        })

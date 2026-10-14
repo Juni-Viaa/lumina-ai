@@ -35,8 +35,13 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # Copy the rest of the application
 COPY . .
 
+# Copy warmup script and entrypoint
+COPY warmup.py .
+COPY entrypoint.sh .
+
 # Expose Django development server port
 EXPOSE 8000
 
+ENTRYPOINT ["sh", "/app/entrypoint.sh"]
 # Production: gunicorn; Development: runserver
 CMD ["sh", "-c", "python manage.py migrate && gunicorn lumina.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120"]

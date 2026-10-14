@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo, type FormEvent, type KeyboardEvent } from "react";
 import Image from "next/image";
 
 import { api } from "@/lib/api";
@@ -23,6 +23,7 @@ interface AskResponse {
     answer: string;
     response_time_ms: number;
     sources: Source[];
+    conversation_id?: number;
 }
 
 interface ChatMessage {
@@ -54,6 +55,7 @@ export default function DashboardPage() {
     const [documents, setDocuments] = useState<DocumentItem[]>([]);
     const [username, setUsername] = useState("Pengguna");
     const [error, setError] = useState<string | null>(null);
+    const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
     const idCounter = useRef(0);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -61,6 +63,11 @@ export default function DashboardPage() {
     useEffect(() => {
         const user = getUser();
         if (user?.username) setUsername(user.username);
+
+        const savedConvId = localStorage.getItem("activeConversationId");
+        if (savedConvId) {
+            setActiveConversationId(Number(savedConvId));
+        }
 
         api
             .get<Paginated<DocumentItem>>("/documents/")
@@ -74,14 +81,53 @@ export default function DashboardPage() {
             setQuestion("");
             setError(null);
             setLoading(false);
+            setActiveConversationId(null);
+            localStorage.removeItem("activeConversationId");
             idCounter.current = 0;
             if (textareaRef.current) {
                 textareaRef.current.style.height = "auto";
             }
         }
 
+        function handleOpenConversation(e: Event) {
+            const detail = (e as CustomEvent<{ id: number }>).detail;
+            if (!detail?.id) return;
+
+            handleNewChat();
+            setLoading(true);
+
+            api
+                .get<{
+                    conversation_id: number;
+                    messages: {
+                        id: number;
+                        role: "user" | "assistant";
+                        content: string;
+                        created_at: string;
+                    }[];
+                }>(`/conversations/${detail.id}/messages/`, { timeout: 10000 })
+                .then((data) => {
+                    setActiveConversationId(data.conversation_id);
+                    localStorage.setItem("activeConversationId", String(data.conversation_id));
+                    const loadedMessages = data.messages.map((msg) => ({
+                        id: ++idCounter.current,
+                        role: msg.role as "user" | "assistant",
+                        content: msg.content,
+                    }));
+                    setMessages(loadedMessages);
+                })
+                .catch(() => {
+                    setError("Gagal memuat percakapan.");
+                })
+                .finally(() => setLoading(false));
+        }
+
         window.addEventListener("lumina:new-chat", handleNewChat);
-        return () => window.removeEventListener("lumina:new-chat", handleNewChat);
+        window.addEventListener("lumina:open-conversation", handleOpenConversation);
+        return () => {
+            window.removeEventListener("lumina:new-chat", handleNewChat);
+            window.removeEventListener("lumina:open-conversation", handleOpenConversation);
+        };
     }, []);
 
     useEffect(() => {
@@ -114,11 +160,20 @@ export default function DashboardPage() {
         }
 
         try {
-            const data = await api.post<AskResponse>(
-                "/ask/",
-                { question: text },
-                { timeout: 120_000 },
-            );
+            const payload: { question: string; conversation_id?: number } = { question: text };
+
+            if (activeConversationId) {
+                payload.conversation_id = activeConversationId;
+            }
+
+            const data = await api.post<AskResponse>("/ask/", payload, { timeout: 120_000 });
+
+            if (data.conversation_id && !activeConversationId) {
+                setActiveConversationId(data.conversation_id);
+                localStorage.setItem("activeConversationId", String(data.conversation_id));
+                window.dispatchEvent(new CustomEvent("lumina:conversation-created", { detail: { id: data.conversation_id, title: text.split(" ").slice(0, 8).join(" ") + (text.length > 8 ? "…" : "") } }));
+            }
+
             const assistantMessage: ChatMessage = {
                 id: ++idCounter.current,
                 role: "assistant",

@@ -20,68 +20,53 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const isAdmin = user?.role === "admin" && user?.is_staff === true;
     const [historyOpen, setHistoryOpen] = useState(true);
     const [accountOpen, setAccountOpen] = useState(false);
-    const [history, setHistory] = useState<
+    const [conversations, setConversations] = useState<
         { id: number; title: string; createdAt: string }[]
     >([]);
-    const [newHistoryId, setNewHistoryId] = useState<number | null>(null);
-    const [typingHistory, setTypingHistory] = useState<Set<number>>(new Set());
+    const [newConversationId, setNewConversationId] = useState<number | null>(null);
     const newChatRef = useRef<HTMLAnchorElement>(null);
-    const typingTimeouts = useRef<Map<number, NodeJS.Timeout>>(new Map());
-    const historyIds = useRef<Set<number>>(new Set());
 
-    useEffect(() => {
-        const abortController = new AbortController();
-        const pendingTimeouts = typingTimeouts.current;
-        let requestInFlight = false;
-        const fetchHistory = () => {
-            if (requestInFlight || abortController.signal.aborted) return;
-            requestInFlight = true;
-            api
+    const fetchConversations = () => {
+        api
             .get<{
                 results: {
                     id: number;
-                    query_detail?: { display_title?: string; created_at?: string };
+                    title: string;
+                    query_detail?: { created_at?: string };
+                    created_at: string;
                 }[];
-            }>("/history/", {
-                signal: abortController.signal,
-            })
+            }>("/conversations/")
             .then((data) => {
-                const newHistory = Array.isArray(data?.results) ? data.results : [];
-                const mapped = newHistory.slice(0, 10).map((h) => ({
-                    id: h.id,
-                    title: h.query_detail?.display_title || `Riwayat #${h.id}`,
-                    createdAt: h.query_detail?.created_at || new Date().toISOString(),
+                const newConversations = Array.isArray(data?.results) ? data.results : [];
+                const mapped = newConversations.slice(0, 10).map((c) => ({
+                    id: c.id,
+                    title: c.title || `Percakapan #${c.id}`,
+                    createdAt: c.query_detail?.created_at || c.created_at,
                 }));
-                setHistory(mapped);
-                newHistory.forEach((h) => {
-                    if (h.id && !historyIds.current.has(h.id)) {
-                        setNewHistoryId(h.id);
-                        const timeoutId = setTimeout(() => {
-                            setTypingHistory((prev) => new Set(prev).add(h.id));
-                        }, 100);
-                        pendingTimeouts.set(h.id, timeoutId);
-                    }
-                });
-                historyIds.current = new Set(newHistory.map((h) => h.id));
+                setConversations(mapped);
             })
-            .catch(() => {})
-                .finally(() => {
-                    requestInFlight = false;
-                });
-        };
-        fetchHistory();
-        const intervalId = setInterval(fetchHistory, 5000);
+            .catch(() => {});
+    };
+
+    useEffect(() => {
+        fetchConversations();
+
+        function handleConversationCreated(e: Event) {
+            const detail = (e as CustomEvent<{ id: number; title: string }>).detail;
+            if (detail?.id) {
+                setNewConversationId(detail.id);
+                fetchConversations();
+            }
+        }
+
+        window.addEventListener("lumina:conversation-created", handleConversationCreated);
         return () => {
-            abortController.abort();
-            clearInterval(intervalId);
-            pendingTimeouts.forEach((timeout) => clearTimeout(timeout));
-            pendingTimeouts.clear();
+            window.removeEventListener("lumina:conversation-created", handleConversationCreated);
         };
     }, []);
 
     function handleNewChat() {
-        setNewHistoryId(null);
-        setTypingHistory(new Set());
+        setNewConversationId(null);
         window.dispatchEvent(new Event("lumina:new-chat"));
         router.push("/");
         onClose();
@@ -116,10 +101,10 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         return "older";
     }
 
-    const groupedHistory = {
-        today: history.filter((h) => getDateGroup(h.createdAt) === "today"),
-        yesterday: history.filter((h) => getDateGroup(h.createdAt) === "yesterday"),
-        older: history.filter((h) => getDateGroup(h.createdAt) === "older"),
+    const groupedConversations = {
+        today: conversations.filter((c) => getDateGroup(c.createdAt) === "today"),
+        yesterday: conversations.filter((c) => getDateGroup(c.createdAt) === "yesterday"),
+        older: conversations.filter((c) => getDateGroup(c.createdAt) === "older"),
     };
 
     return (
@@ -199,76 +184,76 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                     Riwayat Chat
                 </div>
                 <div className="flex flex-col gap-1 pl-4">
-                    {groupedHistory.today.length > 0 && (
+                    {groupedConversations.today.length > 0 && (
                         <>
                             <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-blue-900/80">
                                 Hari ini
                             </div>
-                            {groupedHistory.today.map((h) => (
-                                <Link
-                                    key={h.id}
-                                    href="/history"
-                                    onClick={onClose}
-                                    className={`flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] text-blue-950/70 transition-all hover:bg-white/55 hover:text-blue-700 ${
-                                        h.id === newHistoryId ? "animate-pulse bg-blue-50/50" : ""
+                            {groupedConversations.today.map((c) => (
+                                <button
+                                    key={c.id}
+                                    onClick={() => {
+                                        window.dispatchEvent(new CustomEvent("lumina:open-conversation", { detail: { id: c.id } }));
+                                        onClose();
+                                    }}
+                                    className={`flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] text-blue-950/70 transition-all hover:bg-white/55 hover:text-blue-700 w-full text-left ${
+                                        c.id === newConversationId ? "animate-pulse bg-blue-50/50" : ""
                                     }`}
-                                    title={h.title}
+                                    title={c.title}
                                 >
                                     <span className="h-1.5 w-1.5 rounded-full bg-blue-300/80" />
-                                    <span className={`truncate ${h.id === newHistoryId ? "typing-animation" : ""}`}>
-                                        {h.title}
-                                    </span>
-                                </Link>
+                                    <span className="truncate">{c.title}</span>
+                                </button>
                             ))}
                         </>
                     )}
-                    {groupedHistory.yesterday.length > 0 && (
+                    {groupedConversations.yesterday.length > 0 && (
                         <>
                             <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-blue-900/80">
                                 Kemarin
                             </div>
-                            {groupedHistory.yesterday.map((h) => (
-                                <Link
-                                    key={h.id}
-                                    href="/history"
-                                    onClick={onClose}
-                                    className={`flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] text-blue-950/70 transition-all hover:bg-white/55 hover:text-blue-700 ${
-                                        h.id === newHistoryId ? "animate-pulse bg-blue-50/50" : ""
+                            {groupedConversations.yesterday.map((c) => (
+                                <button
+                                    key={c.id}
+                                    onClick={() => {
+                                        window.dispatchEvent(new CustomEvent("lumina:open-conversation", { detail: { id: c.id } }));
+                                        onClose();
+                                    }}
+                                    className={`flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] text-blue-950/70 transition-all hover:bg-white/55 hover:text-blue-700 w-full text-left ${
+                                        c.id === newConversationId ? "animate-pulse bg-blue-50/50" : ""
                                     }`}
-                                    title={h.title}
+                                    title={c.title}
                                 >
                                     <span className="h-1.5 w-1.5 rounded-full bg-blue-300/80" />
-                                    <span className={`truncate ${h.id === newHistoryId ? "typing-animation" : ""}`}>
-                                        {h.title}
-                                    </span>
-                                </Link>
+                                    <span className="truncate">{c.title}</span>
+                                </button>
                             ))}
                         </>
                     )}
-                    {groupedHistory.older.length > 0 && (
+                    {groupedConversations.older.length > 0 && (
                         <>
                             <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-blue-900/80">
                                 Lebih lama
                             </div>
-                            {groupedHistory.older.map((h) => (
-                                <Link
-                                    key={h.id}
-                                    href="/history"
-                                    onClick={onClose}
-                                    className={`flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] text-blue-950/70 transition-all hover:bg-white/55 hover:text-blue-700 ${
-                                        h.id === newHistoryId ? "animate-pulse bg-blue-50/50" : ""
+                            {groupedConversations.older.map((c) => (
+                                <button
+                                    key={c.id}
+                                    onClick={() => {
+                                        window.dispatchEvent(new CustomEvent("lumina:open-conversation", { detail: { id: c.id } }));
+                                        onClose();
+                                    }}
+                                    className={`flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] text-blue-950/70 transition-all hover:bg-white/55 hover:text-blue-700 w-full text-left ${
+                                        c.id === newConversationId ? "animate-pulse bg-blue-50/50" : ""
                                     }`}
-                                    title={h.title}
+                                    title={c.title}
                                 >
                                     <span className="h-1.5 w-1.5 rounded-full bg-blue-300/80" />
-                                    <span className={`truncate ${h.id === newHistoryId ? "typing-animation" : ""}`}>
-                                        {h.title}
-                                    </span>
-                                </Link>
+                                    <span className="truncate">{c.title}</span>
+                                </button>
                             ))}
                         </>
                     )}
-                    {history.length === 0 && (
+                    {conversations.length === 0 && (
                         <span className="px-3 py-2 text-xs italic text-blue-400/70">
                             Belum ada riwayat
                         </span>

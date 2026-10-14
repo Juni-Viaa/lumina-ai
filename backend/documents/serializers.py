@@ -28,6 +28,7 @@ class DocumentSerializer(serializers.ModelSerializer):
     unclassified_chunk_count = serializers.SerializerMethodField()
     processed_page_count = serializers.IntegerField(read_only=True, default=0)
     processing_duration_seconds = serializers.SerializerMethodField()
+    chunk_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Document
@@ -53,6 +54,7 @@ class DocumentSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "deleted_at",
+            "chunk_count",
         ]
         read_only_fields = ["id", "created_at", "updated_at", "deleted_at"]
 
@@ -79,6 +81,9 @@ class DocumentSerializer(serializers.ModelSerializer):
             + getattr(obj, "vision_chunk_count", 0)
         )
         return max(0, getattr(obj, "total_chunk_count", 0) - classified)
+    def get_chunk_count(self, obj: Document) -> int:
+        """Mengembalikan jumlah chunk untuk dokumen ini."""
+        return obj.chunks.filter(deleted_at__isnull=True).count()
 
 
 class ChunkSerializer(serializers.ModelSerializer):
