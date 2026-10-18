@@ -151,7 +151,7 @@ class IngestUploadView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        self.check_throttles(request)
+        # APIView checks throttles once before dispatching this handler.
 
         serializer = IngestUploadSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)

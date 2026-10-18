@@ -176,3 +176,6 @@ KONTEKS DOKUMEN
 {context}
 
 """
+
+# Limit embedding activation memory during local ingestion.
+EMBEDDING_BATCH_SIZE = max(1, int(os.getenv("EMBEDDING_BATCH_SIZE", "2")))

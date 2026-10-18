@@ -46,7 +46,7 @@ def get_embeddings() -> HuggingFaceEmbeddings:
             model_name=config.EMBEDDING_MODEL,
             cache_folder=cache_folder,
             model_kwargs={"device": config.EMBEDDING_DEVICE},
-            encode_kwargs={"normalize_embeddings": True},
+            encode_kwargs={"normalize_embeddings": True, "batch_size": config.EMBEDDING_BATCH_SIZE},
         )
     return _embeddings
 

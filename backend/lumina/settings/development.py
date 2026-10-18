@@ -48,3 +48,8 @@ REST_FRAMEWORK["DEFAULT_RENDERER_CLASSES"] = [  # noqa: F405
     "rest_framework.renderers.JSONRenderer",
     "rest_framework.renderers.BrowsableAPIRenderer",
 ]
+# Local research uploads: allow 20 documents plus retry headroom.
+REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {
+    **REST_FRAMEWORK.get("DEFAULT_THROTTLE_RATES", {}),
+    "upload": os.environ.get("UPLOAD_THROTTLE_RATE", "30/hour"),
+}

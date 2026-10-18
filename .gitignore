@@ -204,3 +204,6 @@ htmlcov/
 .opencode
 next-env.d.ts
 opencode.jsonc
+# Local evaluation artifacts and user-supplied datasets
+backend/evaluation/data/
+backend/evaluation/results/
