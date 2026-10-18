@@ -65,7 +65,7 @@ function buildHeaders(headers?: HeadersInit): HeadersInit {
 
 async function request<T>(
     path: string,
-    { body, headers, isFormData, timeout, ...options }: RequestOptions = {},
+    { body, headers, isFormData, timeout, signal, ...options }: RequestOptions = {},
 ): Promise<T> {
     const isBodyFormData = isFormData === true;
     const finalHeaders = buildHeaders(
@@ -78,7 +78,13 @@ async function request<T>(
     );
 
     const controller = new AbortController();
-    const timeoutId = timeout ?? DEFAULT_TIMEOUT_MS ? setTimeout(() => controller.abort(), timeout ?? DEFAULT_TIMEOUT_MS) : undefined;
+    const abortFromCaller = () => controller.abort();
+    if (signal?.aborted) controller.abort();
+    else signal?.addEventListener("abort", abortFromCaller, { once: true });
+    const requestTimeout = timeout ?? DEFAULT_TIMEOUT_MS;
+    const timeoutId = requestTimeout > 0
+        ? setTimeout(() => controller.abort(), requestTimeout)
+        : undefined;
 
     try {
         const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -119,20 +125,46 @@ async function request<T>(
         }
         throw error;
     } finally {
+        signal?.removeEventListener("abort", abortFromCaller);
         if (timeoutId) clearTimeout(timeoutId);
     }
 }
 
 export const api = {
     get: <T>(path: string, options?: RequestOptions) => request<T>(path, options),
-    post: <T>(path: string, body: unknown, options?: Omit<RequestOptions, "body">) =>
+    post: <T>(path: string, body: unknown = {}, options?: Omit<RequestOptions, "body">) =>
         request<T>(path, { method: "POST", body, ...options }),
-    patch: <T>(path: string, body: unknown, options?: Omit<RequestOptions, "body">) =>
+    patch: <T>(path: string, body: unknown = {}, options?: Omit<RequestOptions, "body">) =>
         request<T>(path, { method: "PATCH", body, ...options }),
     delete: <T>(path: string, options?: RequestOptions) =>
         request<T>(path, { method: "DELETE", ...options }),
     uploadFile: <T>(path: string, formData: FormData, options?: Omit<RequestOptions, "body" | "isFormData">) =>
         request<T>(path, { method: "POST", body: formData, isFormData: true, ...options }),
+};
+
+export interface DocumentItem {
+  id: number;
+  document_name: string;
+  file_type: string;
+  size: number;
+  file_size_mb: number;
+  status: string;
+  is_ocr: boolean;
+  created_at: string;
+}
+
+export interface DocumentUploadResponse {
+  document_id: number;
+  message: string;
+  status: string;
+  session_id: string;
+}
+
+export const documentsApi = {
+  list: () => api.get<{ results: DocumentItem[]; count: number }>("/documents/"),
+  upload: (formData: FormData) => api.uploadFile<DocumentUploadResponse>("/documents/", formData),
+  ingest: (id: number) => api.post(`/documents/${id}/ingest/`, {}),
+  remove: (id: number) => api.delete(`/documents/${id}/delete/`),
 };
 
 export type { RequestOptions };

@@ -1,1 +1,1 @@
-"""Standalone, read-only RAG research evaluation; no application data writes."""
+"""Read-only research evaluation and RAG quality checks."""

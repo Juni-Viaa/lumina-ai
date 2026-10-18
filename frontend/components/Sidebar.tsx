@@ -50,7 +50,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
     useEffect(() => {
         fetchConversations();
-        
+
         function handleConversationCreated(e: Event) {
             const detail = (e as CustomEvent<{ id: number; title: string }>).detail;
             if (detail?.id) {
@@ -58,7 +58,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 fetchConversations();
             }
         }
-        
+
         window.addEventListener("lumina:conversation-created", handleConversationCreated);
         return () => {
             window.removeEventListener("lumina:conversation-created", handleConversationCreated);

@@ -81,7 +81,7 @@ class AskView(APIView):
 
         # 1. Get conversation_id from request (if provided) or create a new conversation
         conversation_id = request.data.get("conversation_id")
-        
+
         if conversation_id:
             try:
                 conversation = Conversation.objects.get(id=conversation_id, user=request.user)
@@ -107,11 +107,11 @@ class AskView(APIView):
 
         # 3. Run RAG pipeline
         result = _execute_ask(query, question)
-        
+
         # 4. Add conversation_id to all responses
         if isinstance(result.data, dict):
             result.data["conversation_id"] = conversation.id
-        
+
         return result
 
 

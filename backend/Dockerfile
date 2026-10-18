@@ -4,17 +4,18 @@ FROM python:3.12-slim
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=0 \
-    HF_HOME=/app/models/huggingface \
-    TRANSFORMERS_CACHE=/app/models/huggingface/hub \
-    SENTENCE_TRANSFORMERS_HOME=/app/models/sentence_transformers \
-    TORCH_HOME=/app/models/torch \
-    EMBEDDING_MODEL_CACHE_DIR=/app/models
+    PIP_NO_CACHE_DIR=1
 
-# Install system dependencies (psycopg2, build tools, libmagic for MIME detection)
+# OpenCV/PaddleOCR need OpenGL and GLib even for image-only processing.
+# Include the Qt platform dependencies shipped with opencv-contrib-python.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libice6 \
+    poppler-utils \
     libmagic1 \
     curl \
     && rm -rf /var/lib/apt/lists/*
@@ -41,6 +42,6 @@ COPY entrypoint.sh .
 # Expose Django development server port
 EXPOSE 8000
 
-# Entrypoint: conditional warmup, then exec CMD
 ENTRYPOINT ["sh", "/app/entrypoint.sh"]
-CMD ["sh", "-c", "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"]
+# Production: gunicorn; Development: runserver
+CMD ["sh", "-c", "python manage.py migrate && gunicorn lumina.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120"]

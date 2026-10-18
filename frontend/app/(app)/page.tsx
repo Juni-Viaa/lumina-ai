@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo, type FormEvent, type KeyboardEvent } from "react";
 import Image from "next/image";
 
 import { api } from "@/lib/api";
@@ -11,6 +11,9 @@ interface Source {
     page: number | null;
     score: number | null;
     excerpt: string;
+    source_type?: "document_text" | "ocr" | "vision" | null;
+    image_ref?: string | null;
+    ocr_confidence?: number | null;
 }
 
 interface AskResponse {
@@ -60,7 +63,7 @@ export default function DashboardPage() {
     useEffect(() => {
         const user = getUser();
         if (user?.username) setUsername(user.username);
-        
+
         const savedConvId = localStorage.getItem("activeConversationId");
         if (savedConvId) {
             setActiveConversationId(Number(savedConvId));
@@ -158,19 +161,19 @@ export default function DashboardPage() {
 
         try {
             const payload: { question: string; conversation_id?: number } = { question: text };
-            
+
             if (activeConversationId) {
                 payload.conversation_id = activeConversationId;
             }
-            
-            const data = await api.post<AskResponse>("/ask/", payload);
-            
+
+            const data = await api.post<AskResponse>("/ask/", payload, { timeout: 120_000 });
+
             if (data.conversation_id && !activeConversationId) {
                 setActiveConversationId(data.conversation_id);
                 localStorage.setItem("activeConversationId", String(data.conversation_id));
                 window.dispatchEvent(new CustomEvent("lumina:conversation-created", { detail: { id: data.conversation_id, title: text.split(" ").slice(0, 8).join(" ") + (text.length > 8 ? "…" : "") } }));
             }
-            
+
             const assistantMessage: ChatMessage = {
                 id: ++idCounter.current,
                 role: "assistant",
@@ -317,6 +320,19 @@ export default function DashboardPage() {
                                                                 className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs"
                                                             >
                                                                 <span className="font-semibold">{source.source}</span>
+                                                                <span className="ml-2 text-slate-500">
+                                                                    {source.page != null && `Hal. ${source.page} · `}
+                                                                    {source.source_type === "ocr"
+                                                                        ? "OCR"
+                                                                        : source.source_type === "vision"
+                                                                          ? "Gemini Vision"
+                                                                          : source.source_type === "document_text"
+                                                                            ? "Teks dokumen"
+                                                                            : "Asal belum tercatat"}
+                                                                    {source.image_ref && ` · ${source.image_ref}`}
+                                                                    {source.source_type === "ocr" && source.ocr_confidence != null &&
+                                                                        ` · keyakinan OCR ${Math.round(source.ocr_confidence * 100)}%`}
+                                                                </span>
                                                                 <p className="mt-1 line-clamp-3 text-slate-600">
                                                                     {source.excerpt}
                                                                 </p>

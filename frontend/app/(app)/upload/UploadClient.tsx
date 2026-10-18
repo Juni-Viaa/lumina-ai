@@ -10,30 +10,64 @@ interface DocumentItem {
     id: number;
     document_name: string;
     file_type?: string;
+    chunk_count?: number;
     size_human?: string | null;
     size: number;
     status: string;
     created_at: string;
-    chunk_count?: number;
+    updated_at: string;
+    total_chunk_count: number;
+    document_text_chunk_count: number;
+    ocr_chunk_count: number;
+    vision_chunk_count: number;
+    unclassified_chunk_count: number;
+    processed_page_count: number;
+    processing_duration_seconds: number | null;
+}
+
+interface ChunkMetadata {
+    source_type?: "document_text" | "ocr" | "vision";
+    image_ref?: string;
+    ocr_confidence?: number;
+    section?: number;
+    [key: string]: unknown;
 }
 
 interface ChunkItem {
     id: number;
-    document: number;
     chunk_text: string;
+    page: number | null;
+    metadata: ChunkMetadata;
 }
 
 interface IngestLogItem {
     id: number;
     step: string;
     message: string;
+    status: string;
+    metadata?: Record<string, unknown> | null;
     created_at: string;
 }
 
 type DocsPayload = DocumentItem[] | { results?: DocumentItem[] };
-type OpenDetail = { documentId: number; type: "chunks" | "logs" } | null;
+type DetailTab = "summary" | "visual" | "chunks" | "logs";
+type OpenDetail = { documentId: number; tab: DetailTab } | null;
 
-const ALLOWED_EXTENSIONS = [".pdf", ".docx", ".txt"];
+const ALLOWED_EXTENSIONS = [".pdf", ".docx", ".txt", ".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp"];
+
+function validateFile(file: File): string | null {
+    const ext = "." + file.name.split(".").pop()?.toLowerCase();
+
+    if (!ALLOWED_EXTENSIONS.includes(ext)) {
+        return `Tipe file tidak didukung: ${ext}`;
+    }
+
+    if (file.size > 100 * 1024 * 1024) {
+        return "Ukuran file melebihi batas 100 MB.";
+    }
+
+    return null;
+}
 
 function formatBytes(bytes: number): string {
     if (!Number.isFinite(bytes)) return "-";
@@ -56,32 +90,313 @@ function formatDate(value: string): string {
     })}`;
 }
 
+function formatDuration(seconds: number | null): string {
+    if (seconds == null || seconds < 0) return "-";
+    if (seconds < 60) return `${seconds} detik`;
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return remainingSeconds > 0
+        ? `${minutes} menit ${remainingSeconds} detik`
+        : `${minutes} menit`;
+}
+
+function sourceLabel(sourceType?: ChunkMetadata["source_type"]): string {
+    if (sourceType === "ocr") return "OCR";
+    if (sourceType === "vision") return "Gemini Vision";
+    if (sourceType === "document_text") return "Teks Dokumen";
+    return "Belum berlabel";
+}
+
+function sourceBadgeClass(sourceType?: ChunkMetadata["source_type"]): string {
+    if (sourceType === "ocr") return "bg-amber-500/10 text-amber-700";
+    if (sourceType === "vision") return "bg-violet-500/10 text-violet-700";
+    if (sourceType === "document_text") return "bg-sky-500/10 text-sky-700";
+    return "bg-slate-500/10 text-slate-600";
+}
+
 function statusBadgeClass(status: string): string {
     switch (status) {
         case "processing":
         case "pending":
-            return "text-orange-600 bg-orange-50";
+            return "text-yellow-600";
 
         case "indexed":
         case "completed":
         case "success":
-            return "text-green-600 bg-green-50";
+            return "text-green-600";
 
         case "failed":
         case "error":
-            return "text-red-600 bg-red-50";
+            return "text-rose-500";
 
         default:
-            return "text-[#1a3a52]/60 bg-white/15";
+            return "text-[#1a3a52]/60";
     }
 }
 
+interface ProcessingDetailProps {
+    document: DocumentItem;
+    activeTab: DetailTab;
+    chunks: ChunkItem[];
+    logs: IngestLogItem[];
+    loading: boolean;
+    onTabChange: (tab: DetailTab) => void;
+}
+
+function ProcessingDetail({
+    document,
+    activeTab,
+    chunks,
+    logs,
+    loading,
+    onTabChange,
+}: ProcessingDetailProps) {
+    const [chunkFilter, setChunkFilter] = useState<"all" | "document_text" | "ocr" | "vision">("all");
+    const filteredChunks = chunkFilter === "all"
+        ? chunks
+        : chunks.filter((chunk) => chunk.metadata?.source_type === chunkFilter);
+    const visualChunks = chunks.filter((chunk) =>
+        chunk.metadata?.source_type === "ocr" || chunk.metadata?.source_type === "vision",
+    );
+    const visualGroups = Array.from(
+        visualChunks.reduce((groups, chunk) => {
+            const key = chunk.metadata?.image_ref ?? `chunk-${chunk.id}`;
+            const group = groups.get(key) ?? { imageRef: key, ocr: [], vision: [] };
+            if (chunk.metadata?.source_type === "ocr") group.ocr.push(chunk);
+            if (chunk.metadata?.source_type === "vision") group.vision.push(chunk);
+            groups.set(key, group);
+            return groups;
+        }, new Map<string, { imageRef: string; ocr: ChunkItem[]; vision: ChunkItem[] }>()),
+    ).map(([, group]) => group);
+
+    const tabs: Array<{ id: DetailTab; label: string }> = [
+        { id: "summary", label: "Ringkasan" },
+        { id: "visual", label: "OCR & Vision" },
+        { id: "chunks", label: "Semua Chunk" },
+        { id: "logs", label: "Log Proses" },
+    ];
+
+    return (
+        <div className="mt-4 overflow-hidden rounded-2xl border border-white/25 bg-white/15">
+            <div className="flex gap-1 overflow-x-auto border-b border-white/20 p-2">
+                {tabs.map((tab) => (
+                    <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => onTabChange(tab.id)}
+                        className={`whitespace-nowrap rounded-xl px-3 py-2 text-xs font-medium transition-colors ${
+                            activeTab === tab.id
+                                ? "bg-[#1a6fa8] text-white shadow-sm"
+                                : "text-[#1a3a52]/65 hover:bg-white/20"
+                        }`}
+                    >
+                        {tab.label}
+                    </button>
+                ))}
+            </div>
+
+            <div className="max-h-[30rem] overflow-y-auto p-4">
+                {activeTab === "summary" && (
+                    <div className="space-y-4">
+                        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                            {[
+                                ["Total Chunk", document.total_chunk_count, "text-[#1a3a52]"],
+                                ["Teks Dokumen", document.document_text_chunk_count, "text-sky-700"],
+                                ["OCR", document.ocr_chunk_count, "text-amber-700"],
+                                ["Gemini Vision", document.vision_chunk_count, "text-violet-700"],
+                            ].map(([label, value, color]) => (
+                                <div key={String(label)} className="rounded-2xl bg-white/25 p-3">
+                                    <p className="text-[11px] uppercase tracking-wide text-[#1a3a52]/45">
+                                        {label}
+                                    </p>
+                                    <p className={`mt-1 text-2xl font-semibold ${color}`}>
+                                        {value}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="grid gap-3 rounded-2xl bg-white/20 p-4 text-xs sm:grid-cols-2 lg:grid-cols-4">
+                            <div>
+                                <p className="text-[#1a3a52]/45">Status</p>
+                                <p className={`mt-1 font-semibold uppercase ${statusBadgeClass(document.status)}`}>
+                                    {document.status}
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-[#1a3a52]/45">Durasi pemrosesan</p>
+                                <p className="mt-1 font-medium text-[#1a3a52]">
+                                    {formatDuration(document.processing_duration_seconds)}
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-[#1a3a52]/45">Halaman terdeteksi</p>
+                                <p className="mt-1 font-medium text-[#1a3a52]">
+                                    {document.processed_page_count || "-"}
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-[#1a3a52]/45">Selesai diperbarui</p>
+                                <p className="mt-1 font-medium text-[#1a3a52]">
+                                    {formatDate(document.updated_at)}
+                                </p>
+                            </div>
+                        </div>
+
+                        {document.unclassified_chunk_count > 0 && (
+                            <div className="rounded-xl border border-slate-400/15 bg-slate-100/30 px-3 py-2 text-xs text-[#1a3a52]/60">
+                                {document.unclassified_chunk_count} chunk lama belum memiliki label asal.
+                                Dokumen perlu di-ingest ulang jika label OCR, Vision, dan teks ingin dilengkapi.
+                            </div>
+                        )}
+
+                        <p className="text-xs leading-relaxed text-[#1a3a52]/55">
+                            Hasil OCR dan Gemini Vision sudah disimpan sebagai chunk terpisah.
+                            Buka tab OCR &amp; Vision untuk membandingkan pembacaan dari gambar yang sama.
+                        </p>
+                    </div>
+                )}
+
+                {activeTab === "visual" && (
+                    loading ? (
+                        <p className="text-xs text-[#1a3a52]/50">Memuat hasil OCR dan Vision...</p>
+                    ) : visualGroups.length === 0 ? (
+                        <p className="text-xs text-[#1a3a52]/50">
+                            Dokumen ini tidak memiliki hasil OCR atau Gemini Vision.
+                        </p>
+                    ) : (
+                        <div className="space-y-3">
+                            {visualGroups.map((group) => (
+                                <div key={group.imageRef} className="rounded-2xl bg-white/20 p-3">
+                                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                        <p className="text-xs font-semibold text-[#1a3a52]">
+                                            {group.imageRef}
+                                        </p>
+                                        <div className="flex gap-1.5 text-[10px]">
+                                            <span className="rounded-full bg-amber-500/10 px-2 py-1 text-amber-700">
+                                                {group.ocr.length} OCR
+                                            </span>
+                                            <span className="rounded-full bg-violet-500/10 px-2 py-1 text-violet-700">
+                                                {group.vision.length} Vision
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid gap-3 lg:grid-cols-2">
+                                        <div className="rounded-xl border border-amber-500/15 bg-amber-50/35 p-3">
+                                            <p className="mb-2 text-xs font-semibold text-amber-700">
+                                                OCR
+                                                {group.ocr[0]?.metadata?.ocr_confidence != null &&
+                                                    ` · keyakinan ${Math.round(group.ocr[0].metadata.ocr_confidence * 100)}%`}
+                                            </p>
+                                            <p className="whitespace-pre-wrap text-xs leading-relaxed text-[#1a3a52]/70">
+                                                {group.ocr.map((chunk) => chunk.chunk_text).join("\n\n") || "Tidak ada hasil OCR."}
+                                            </p>
+                                        </div>
+
+                                        <div className="rounded-xl border border-violet-500/15 bg-violet-50/35 p-3">
+                                            <p className="mb-2 text-xs font-semibold text-violet-700">
+                                                Gemini Vision
+                                            </p>
+                                            <p className="whitespace-pre-wrap text-xs leading-relaxed text-[#1a3a52]/70">
+                                                {group.vision.map((chunk) => chunk.chunk_text).join("\n\n") || "Tidak ada hasil Vision."}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )
+                )}
+
+                {activeTab === "chunks" && (
+                    loading ? (
+                        <p className="text-xs text-[#1a3a52]/50">Memuat chunk...</p>
+                    ) : chunks.length === 0 ? (
+                        <p className="text-xs text-[#1a3a52]/50">Belum ada chunk.</p>
+                    ) : (
+                        <div>
+                            <div className="mb-3 flex flex-wrap gap-1.5">
+                                {[
+                                    ["all", "Semua"],
+                                    ["document_text", "Teks Dokumen"],
+                                    ["ocr", "OCR"],
+                                    ["vision", "Gemini Vision"],
+                                ].map(([value, label]) => (
+                                    <button
+                                        key={value}
+                                        type="button"
+                                        onClick={() => setChunkFilter(value as typeof chunkFilter)}
+                                        className={`rounded-full px-2.5 py-1 text-[11px] ${
+                                            chunkFilter === value
+                                                ? "bg-[#1a6fa8] text-white"
+                                                : "bg-white/20 text-[#1a3a52]/65"
+                                        }`}
+                                    >
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            <div className="space-y-3">
+                                {filteredChunks.map((chunk, index) => (
+                                    <div key={chunk.id} className="rounded-xl bg-white/20 p-3">
+                                        <div className="mb-2 flex flex-wrap items-center gap-2 text-[10px]">
+                                            <span className="font-semibold text-[#1a3a52]/55">
+                                                Chunk {index + 1}
+                                            </span>
+                                            <span className={`rounded-full px-2 py-1 ${sourceBadgeClass(chunk.metadata?.source_type)}`}>
+                                                {sourceLabel(chunk.metadata?.source_type)}
+                                            </span>
+                                            {chunk.page != null && (
+                                                <span className="text-[#1a3a52]/45">Halaman {chunk.page}</span>
+                                            )}
+                                            {chunk.metadata?.image_ref && (
+                                                <span className="text-[#1a3a52]/45">{chunk.metadata.image_ref}</span>
+                                            )}
+                                            {chunk.metadata?.source_type === "ocr" && chunk.metadata.ocr_confidence != null && (
+                                                <span className="text-amber-700">
+                                                    Keyakinan {Math.round(chunk.metadata.ocr_confidence * 100)}%
+                                                </span>
+                                            )}
+                                        </div>
+                                        <p className="whitespace-pre-wrap text-xs leading-relaxed text-[#1a3a52]/70">
+                                            {chunk.chunk_text}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )
+                )}
+
+                {activeTab === "logs" && (
+                    loading ? (
+                        <p className="text-xs text-[#1a3a52]/50">Memuat log proses...</p>
+                    ) : logs.length === 0 ? (
+                        <p className="text-xs text-[#1a3a52]/50">Belum ada log ingest.</p>
+                    ) : (
+                        <div className="space-y-2">
+                            {logs.map((log) => (
+                                <div key={log.id} className="grid gap-1 rounded-xl bg-white/20 p-3 text-xs sm:grid-cols-[9rem_8rem_1fr] sm:items-start">
+                                    <p className="text-[#1a3a52]/45">{formatDate(log.created_at)}</p>
+                                    <div>
+                                        <p className="font-medium text-[#1a3a52]">{log.step}</p>
+                                        <p className={statusBadgeClass(log.status)}>{log.status}</p>
+                                    </div>
+                                    <p className="text-[#1a3a52]/70">{log.message}</p>
+                                </div>
+                            ))}
+                        </div>
+                    )
+                )}
+            </div>
+        </div>
+    );
+}
+
 function statusLabel(status: string): string {
-    const s = status.toLowerCase();
-    if (s === "indexed" || s === "completed" || s === "success") return "Indexed";
-    if (s === "processing" || s === "pending") return "Processing";
-    if (s === "failed" || s === "error") return "Failed";
-    return status;
+    return status.toLowerCase();
 }
 
 export default function UploadPage() {
@@ -122,7 +437,9 @@ function ManageSection() {
     const [chunks, setChunks] = useState<ChunkItem[]>([]);
     const [logs, setLogs] = useState<IngestLogItem[]>([]);
     const [loadingDetail, setLoadingDetail] = useState(false);
-    const docRefs = useRef<Map<number, HTMLDivElement | null>>(new Map());
+    const [chunksDocumentId, setChunksDocumentId] = useState<number | null>(null);
+    const [logsDocumentId, setLogsDocumentId] = useState<number | null>(null);
+    const docRefs = useRef<Map<number, HTMLTableRowElement | null>>(new Map());
     const tableRef = useRef<HTMLTableElement>(null);
     const tbodyRef = useRef<HTMLTableSectionElement>(null);
 
@@ -138,8 +455,6 @@ function ManageSection() {
     const [dateSort, setDateSort] = useState<string>("newest");
     const menuRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const chunkRef = useRef<HTMLDivElement>(null);
-    const logRef = useRef<HTMLDivElement>(null);
 
     function validateFile(file: File): string | null {
         const ext = "." + file.name.split(".").pop()?.toLowerCase();
@@ -417,56 +732,57 @@ function ManageSection() {
         await refreshDocs();
     }
 
-    async function toggleDetail(doc: DocumentItem, type: "chunks" | "logs") {
-        if (openDetail?.documentId === doc.id && openDetail.type === type) {
+    function toggleDetail(doc: DocumentItem, tab: DetailTab = "summary") {
+        if (openDetail?.documentId === doc.id) {
             setOpenDetail(null);
             return;
         }
 
-        if (type === "chunks" || type === "logs") {
-            setDocs((prevDocs) => {
-                const targetDoc = prevDocs.find((d) => d.id === doc.id);
-                if (!targetDoc) return prevDocs;
-                const otherDocs = prevDocs.filter((d) => d.id !== doc.id);
-                return [targetDoc, ...otherDocs];
+        void selectDetailTab(doc, tab);
+        setTimeout(() => {
+            docRefs.current.get(doc.id)?.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
             });
-        }
+        }, 50);
+    }
 
-        setOpenDetail({ documentId: doc.id, type });
+    async function selectDetailTab(doc: DocumentItem, tab: DetailTab) {
+        setOpenDetail({ documentId: doc.id, tab });
+
+        if (tab === "summary") return;
+
+        if ((tab === "visual" || tab === "chunks") && chunksDocumentId === doc.id) {
+            return;
+        }
+        if (tab === "logs" && logsDocumentId === doc.id) return;
+
         setLoadingDetail(true);
 
         try {
-            if (type === "chunks") {
+            if (tab === "visual" || tab === "chunks") {
                 const data = await api.get<ChunkItem[]>(`/documents/${doc.id}/chunks/`);
 
                 setChunks(Array.isArray(data) ? data : []);
+                setChunksDocumentId(doc.id);
             } else {
                 const data = await api.get<IngestLogItem[]>(
                     `/documents/${doc.id}/ingest_logs/`,
                 );
 
                 setLogs(Array.isArray(data) ? data : []);
+                setLogsDocumentId(doc.id);
             }
         } catch {
-            if (type === "chunks") {
+            if (tab === "visual" || tab === "chunks") {
                 setChunks([]);
+                setChunksDocumentId(doc.id);
             } else {
                 setLogs([]);
+                setLogsDocumentId(doc.id);
             }
         } finally {
             setLoadingDetail(false);
-
-            setTimeout(() => {
-                const el = docRefs.current.get(doc.id);
-                const tbody = tbodyRef.current;
-
-                if (el && tbody) {
-                    el.scrollIntoView({
-                        behavior: "smooth",
-                        block: "center",
-                    });
-                }
-            }, 50);
         }
     }
 
@@ -732,61 +1048,20 @@ function ManageSection() {
                                 sortedDocs.map((doc) => {
                                     const chunkCount = doc.chunk_count ?? 0;
                                     const isExpanded = openDetail?.documentId === doc.id;
-                                    const isChunks = openDetail?.type === "chunks";
-                                    const isLogs = openDetail?.type === "logs";
+
+
 
                                     const detailRow = isExpanded ? (
-                                        <tr key={`detail-${doc.id}`} className="bg-white/5">
-                                            <td colSpan={8} className="p-0">
-                                                <div className="overflow-hidden border-t border-white/10 bg-white/10">
-                                                    <div className="p-4">
-                                                        <h4 className="mb-3 text-sm font-semibold text-[#1a3a52]">
-                                                            {isChunks ? `Chunk (${chunks.length} item)` : `Ingest Log (${logs.length} item)`}
-                                                        </h4>
-                                                        {loadingDetail ? (
-                                                            <p className="text-sm text-[#1a3a52]/50">Memuat data...</p>
-                                                        ) : isChunks ? (
-                                                            chunks.length === 0 ? (
-                                                                <p className="text-sm text-[#1a3a52]/50">Tidak ada chunk tersedia.</p>
-                                                            ) : (
-                                                                <div ref={chunkRef} className="max-h-64 overflow-y-auto space-y-3 pr-2">
-                                                                    {chunks.map((chunk, index) => (
-                                                                        <div key={chunk.id} className="rounded-lg bg-white/5 p-3">
-                                                                            <div className="mb-1 flex items-center justify-between">
-                                                                                <span className="text-xs font-medium text-[#1a6fa8]">
-                                                                                    Chunk {index + 1}
-                                                                                </span>
-                                                                            </div>
-                                                                            <p className="whitespace-pre-wrap text-xs leading-relaxed text-[#1a3a52]/80">
-                                                                                {chunk.chunk_text}
-                                                                            </p>
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            )
-                                                        ) : logs.length === 0 ? (
-                                                            <p className="text-sm text-[#1a3a52]/50">Tidak ada log tersedia.</p>
-                                                        ) : (
-                                                            <div ref={logRef} className="max-h-64 overflow-y-auto space-y-2 pr-2">
-                                                                {logs.map((log) => (
-                                                                    <div key={log.id} className="rounded-lg bg-white/5 p-3">
-                                                                        <div className="mb-1 flex items-center justify-between">
-                                                                            <span className="text-xs font-medium text-[#1a6fa8]">
-                                                                                {log.step}
-                                                                            </span>
-                                                                            <span className="text-[10px] text-[#1a3a52]/40">
-                                                                                {formatDate(log.created_at)}
-                                                                            </span>
-                                                                        </div>
-                                                                        <p className="text-xs text-[#1a3a52]/70">
-                                                                            {log.message}
-                                                                        </p>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
+                                        <tr key={`detail-${doc.id}`}>
+                                            <td colSpan={8} className="p-4">
+                                                <ProcessingDetail
+                                                    document={doc}
+                                                    activeTab={openDetail?.tab ?? "summary"}
+                                                    chunks={chunksDocumentId === doc.id ? chunks : []}
+                                                    logs={logsDocumentId === doc.id ? logs : []}
+                                                    loading={loadingDetail}
+                                                    onTabChange={(tab) => void selectDetailTab(doc, tab)}
+                                                />
                                             </td>
                                         </tr>
                                     ) : null;
@@ -874,7 +1149,7 @@ function ManageSection() {
                                                                 <div className="py-1">
                                                                     <button
                                                                         onClick={() => {
-                                                                            toggleDetail(doc, "chunks");
+                                                                            toggleDetail(doc, "summary");
                                                                             setOpenMenuId(null);
                                                                         }}
                                                                         className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#1a6fa8] hover:bg-[#1a6fa8]/10"
@@ -882,7 +1157,7 @@ function ManageSection() {
                                                                         <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                                                                             <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
                                                                         </svg>
-                                                                        Lihat Chunk
+                                                                        Detail Proses &amp; Chunk
                                                                     </button>
                                                                     <button
                                                                         onClick={() => {
