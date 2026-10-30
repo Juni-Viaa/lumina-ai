@@ -14,8 +14,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 # Load environment variables from .env file if exists
 load_dotenv(BASE_DIR / ".env")
 
-# ── Security ────────────────────────────────────────────────────────────────
-SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY") or ""
+
+def _get_env_or_raise(name: str, context: str = "") -> str:
+    value = os.environ.get(name)
+    if not value:
+        raise RuntimeError(f"Missing required environment variable: {name}{context}")
+    return value
+
+# ── Security ────────────────────────────────────────────────────────
+SECRET_KEY = _get_env_or_raise("DJANGO_SECRET_KEY", " (security critical)")
 
 DEBUG = False
 
@@ -80,9 +87,9 @@ AUTH_USER_MODEL = "core.User"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ.get("DB_NAME", "lumina"),
-        "USER": os.environ.get("DB_USER", "lumina"),
-        "PASSWORD": os.environ.get("DB_PASSWORD", "lumina_secret"),
+        "NAME": _get_env_or_raise("DB_NAME", " (database name required)"),
+        "USER": _get_env_or_raise("DB_USER", " (database username required)"),
+        "PASSWORD": _get_env_or_raise("DB_PASSWORD", " (database password required)"),
         "HOST": os.environ.get("DB_HOST", "127.0.0.1"),
         "PORT": os.environ.get("DB_PORT", "5433"),
     }
@@ -139,7 +146,7 @@ REST_FRAMEWORK = {
         "rest_framework.throttling.ScopedRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
-        "upload": "10/hour",
+        "upload": "20/hour",
     },
 }
 
@@ -159,7 +166,7 @@ CORS_ALLOW_CREDENTIALS = True
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 # ── Celery ─────────────────────────────────────────────────────────────────
-CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://127.0.0.1:6379/0")
+CELERY_BROKER_URL = _get_env_or_raise("CELERY_BROKER_URL", " (Redis URL required for background tasks)")
 CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", CELERY_BROKER_URL)
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = int(os.environ.get("CELERY_TASK_TIME_LIMIT", "1800"))

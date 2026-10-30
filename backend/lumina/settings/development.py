@@ -5,14 +5,13 @@ Digunakan saat DJANGO_ENV=development (default).
 """
 import os
 
+from lumina.settings.base import _get_env_or_raise  # noqa: F401
 from lumina.settings.base import *  # noqa: F401,F403
 
 # ── Security ────────────────────────────────────────────────────────────────
 DEBUG = True
 
-SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY") or (
-    "django-insecure-w@)$18!m6_vhuaxt8wnkua_ec_&&@el^qnza^qi8&hzx6s4w&9"
-)
+SECRET_KEY = _get_env_or_raise("DJANGO_SECRET_KEY", " (security critical)")
 
 ALLOWED_HOSTS = [host for host in os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,testserver").split(",") if host or host == "testserver"]
 
@@ -20,9 +19,9 @@ ALLOWED_HOSTS = [host for host in os.environ.get("DJANGO_ALLOWED_HOSTS", "localh
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ.get("DB_NAME", "lumina"),
-        "USER": os.environ.get("DB_USER", "lumina"),
-        "PASSWORD": os.environ.get("DB_PASSWORD", "lumina_secret"),
+        "NAME": _get_env_or_raise("DB_NAME", " (database name required)"),
+        "USER": _get_env_or_raise("DB_USER", " (database username required)"),
+        "PASSWORD": _get_env_or_raise("DB_PASSWORD", " (database password required)"),
         "HOST": os.environ.get("DB_HOST", "127.0.0.1"),
         "PORT": os.environ.get("DB_PORT", "5433"),
     }

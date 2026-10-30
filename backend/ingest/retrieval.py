@@ -186,11 +186,11 @@ def run_rag_query(query_id: int, question: str, top_k: int | None = None) -> dic
     Returns a dict with answer, sources, response_time_ms, and answer_id.
     Raises RagPipelineError dengan pesan Bahasa Indonesia bila pipeline gagal.
     """
-    top_k = top_k or getattr(config, "TOP_K", 7)
-    dense_top_k = getattr(config, "DENSE_TOP_K", 20)
-    sparse_top_k = getattr(config, "SPARSE_TOP_K", 20)
-    reranker_input_k = getattr(config, "RERANKER_INPUT_K", 20)
-    rrf_k = getattr(config, "RRF_K", 60)
+    top_k = top_k or config.TOP_K
+    dense_top_k = config.DENSE_TOP_K
+    sparse_top_k = config.SPARSE_TOP_K
+    reranker_input_k = config.RERANKER_INPUT_K
+    rrf_k = config.RRF_K
 
     try:
         query = Query.objects.get(pk=query_id)

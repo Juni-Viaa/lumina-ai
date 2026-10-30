@@ -28,9 +28,9 @@ def get_reranker() -> Any:
     """
     global _reranker_instance
     if _reranker_instance is None:
-        model_name = getattr(config, "RERANKER_MODEL", "BAAI/bge-reranker-base")
-        device = getattr(config, "RERANKER_DEVICE", "cpu")
-        cache_folder = str(config.EMBEDDING_MODEL_CACHE_DIR) if getattr(config, "EMBEDDING_MODEL_CACHE_DIR", None) else None
+        model_name = config.RERANKER_MODEL
+        device = config.RERANKER_DEVICE
+        cache_folder = str(config.EMBEDDING_MODEL_CACHE_DIR) if config.EMBEDDING_MODEL_CACHE_DIR else None
 
         logger.info("Initializing Reranker model: %s on device: %s", model_name, device)
 

@@ -1,6 +1,12 @@
-from rest_framework import serializers
+from rest_framework import serializers, pagination
 
 from core.models import Document, Chunk, IngestLog
+
+
+class DocumentPagination(pagination.PageNumberPagination):
+    page_size = 10
+    page_size_query_param = "limit"
+    max_page_size = 100
 
 
 class DocumentSerializer(serializers.ModelSerializer):

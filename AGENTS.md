@@ -45,8 +45,6 @@ Fitur utama:
 ### RAG Pipeline
 - **LangChain** — orkestrasi pipeline RAG.
 - **Hybrid Retrieval** — dense (pgvector) + sparse (PostgreSQL FTS), digabung dengan **RRF (Reciprocal Rank Fusion)**.
-- **Multi-Query Retriever** — variasi query untuk meningkatkan recall.
-- **HyDE** — query expansion berbasis hypothetical document.
 - **Metadata Filtering** — pembatasan retrieval berdasarkan `user_id`, `document_id`, `section`, dll.
 - **Embedding**: Hugging Face `intfloat/multilingual-e5-large` (ingat prefix `"query: "` / `"passage: "` saat encoding).
 - **Reranking**: BGE Reranker v2 M3 (cross-encoder).
@@ -55,7 +53,6 @@ Fitur utama:
 ### Document & OCR Processing
 - **Unstructured** — parsing dokumen dengan layout kompleks.
 - **Adaptive / Structure-aware Chunking** — chunking berbasis heading/paragraf/section.
-- **Small-to-Big Retrieval** — retrieve chunk kecil, gunakan parent context lebih besar untuk generation.
 - **PaddleOCR** & **Tesseract OCR** — ekstraksi teks dari gambar/dokumen hasil scan.
 - **pdf2image** — konversi halaman PDF ke gambar untuk OCR.
 
@@ -95,7 +92,7 @@ lumina/
 1. **Jangan mengubah stack yang sudah ditetapkan.** Jangan mengganti Next.js↔Vue, Django↔Flask/Laravel, PostgreSQL↔MongoDB, pgvector↔FAISS, dsb., tanpa instruksi eksplisit dari user. Stack di dokumen ini adalah keputusan final proyek.
 2. **Backend dan frontend berkomunikasi hanya lewat REST API** (Django REST Framework). Jangan membuat agent menulis logic RAG di sisi frontend, atau memanggil database langsung dari Next.js.
 3. **Semua pemrosesan AI (embedding, retrieval, reranking, generation, OCR) terjadi di backend Django**, bukan di frontend maupun di client browser.
-4. **Ikuti pola RAG hybrid yang sudah ada**: jangan menyederhanakan retrieval menjadi dense-only tanpa alasan kuat — RRF fusion, multi-query, dan HyDE adalah bagian dari desain, bukan opsional.
+4. **Ikuti pola RAG hybrid yang sudah ada**: jangan menyederhanakan retrieval menjadi dense-only tanpa alasan kuat — RRF fusion adalah bagian dari desain, bukan opsional.
 5. **Jaga konsistensi prefix embedding**: gunakan `"query: "` untuk teks kueri dan `"passage: "` untuk teks dokumen saat memanggil `multilingual-e5-large`, sesuai konvensi model tersebut.
 6. **Metadata filtering wajib** pada setiap query retrieval yang berhubungan dengan akses user (`user_id`, `document_id`, scope) — ini adalah kontrol keamanan, bukan hanya fitur performa.
 7. **Jangan hardcode kredensial, API key (termasuk Gemini API key), atau connection string.** Selalu gunakan environment variables (`.env`, Django `settings.py` via `os.environ` / `django-environ`) dan pastikan `.env` ada di `.gitignore`.

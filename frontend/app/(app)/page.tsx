@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo, type FormEvent, type KeyboardEvent } from "react";
 import Image from "next/image";
 
 import { api } from "@/lib/api";

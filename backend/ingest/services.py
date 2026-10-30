@@ -15,6 +15,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from django.contrib.postgres.search import SearchVector
 from django.db import transaction
 from django.utils import timezone
 
@@ -223,6 +224,11 @@ def _embed_and_persist(
                 )
             )
         Chunk.objects.bulk_create(chunk_objs)
+
+        # Ensure search_vector is populated even if DB trigger did not fire
+        Chunk.objects.filter(document=document, search_vector__isnull=True).update(
+            search_vector=SearchVector("chunk_text", config="pg_catalog.simple")
+        )
 
     _log_ingest(document.id, "database", f"Saved {len(chunk_objs)} chunks to pgvector", session_id)
     return len(chunk_objs)

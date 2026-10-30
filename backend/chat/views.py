@@ -1,5 +1,6 @@
 import logging
 
+from django.db.models import Q
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -70,12 +71,12 @@ class AskView(APIView):
         question = (request.data.get("question") or "").strip()
         if not question:
             return Response(
-                {"detail": "question is required."},
+                {"detail": "Pertanyaan wajib diisi."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         if len(question) < 2 or len(question) > 2000:
             return Response(
-                {"detail": "question harus antara 2 dan 2000 karakter."},
+                {"detail": "Pertanyaan harus antara 2 dan 2000 karakter."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -87,7 +88,7 @@ class AskView(APIView):
                 conversation = Conversation.objects.get(id=conversation_id, user=request.user)
             except Conversation.DoesNotExist:
                 return Response(
-                    {"detail": "Conversation not found or access denied."},
+                    {"detail": "Percakapan tidak ditemukan atau Anda tidak memiliki akses."},
                     status=status.HTTP_404_NOT_FOUND,
                 )
         else:
@@ -152,7 +153,7 @@ class QueryViewSet(viewsets.ModelViewSet):
         question = (request.data.get("question") or query.query_text).strip()
         if not question:
             return Response(
-                {"detail": "question is required."},
+                {"detail": "Pertanyaan wajib diisi."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         return _execute_ask(query, question)
@@ -198,12 +199,28 @@ class ConversationViewSet(viewsets.ModelViewSet):
     serializer_class = ConversationSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_serializer_class(self):
+        if self.action == "list":
+            return ConversationListSerializer
+        return ConversationSerializer
+
     def get_queryset(self):
-        """Filter conversation berdasarkan user yang sedang login."""
+        """Filter conversation berdasarkan user yang sedang login dan search query."""
         user = self.request.user
         if user.role == "admin":
-            return Conversation.objects.all()
-        return Conversation.objects.filter(user=user)
+            qs = Conversation.objects.all()
+        else:
+            qs = Conversation.objects.filter(user=user)
+        
+        q = self.request.query_params.get("q", "").strip()
+        if q:
+            qs = qs.filter(
+                Q(title__icontains=q) |
+                Q(queries__query_text__icontains=q) |
+                Q(queries__query_title__icontains=q)
+            ).distinct()
+        
+        return qs.prefetch_related("queries").order_by("-updated_at")
 
     def perform_create(self, serializer):
         """Set user_id otomatis dari user yang sedang login."""
@@ -238,3 +255,37 @@ class ConversationViewSet(viewsets.ModelViewSet):
             "conversation_id": conversation.id,
             "messages": messages,
         })
+
+    @action(detail=False, methods=["get"], url_path="search")
+    def search(self, request):
+        """Search conversations by title or query text."""
+        q = request.query_params.get("q", "").strip()
+        
+        if not q:
+            return Response({"results": []})
+        
+        user = request.user
+        base_filter = Q() if user.role == "admin" else Q(user=user)
+        conversations = Conversation.objects.filter(
+            base_filter &
+            (Q(title__icontains=q) | Q(queries__query_text__icontains=q) | Q(queries__query_title__icontains=q))
+        ).distinct().order_by("-updated_at")[:20]
+        
+        results = []
+        for conv in conversations:
+            messages = []
+            for query in conv.queries.all()[:5]:
+                messages.append({
+                    "role": "user",
+                    "content": query.query_text,
+                    "created_at": query.created_at.isoformat()
+                })
+            
+            results.append({
+                "id": conv.id,
+                "title": conv.title,
+                "created_at": conv.created_at.isoformat(),
+                "messages": messages
+            })
+        
+        return Response({"results": results})

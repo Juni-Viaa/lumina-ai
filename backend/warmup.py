@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 def warmup_models():
-    """Load embedding model into memory at startup."""
+    """Load embedding and reranker models into memory at startup."""
     # Ensure cache dir exists
     cache_dir = os.getenv("EMBEDDING_MODEL_CACHE_DIR", "/app/models")
     os.makedirs(cache_dir, exist_ok=True)
@@ -29,6 +29,19 @@ def warmup_models():
     # Test encode to ensure model is fully loaded (not just initialized)
     _ = embeddings.embed_query("query: warmup test")
     logger.info("Embedding model warmed up successfully")
+
+    # Load reranker model (singleton from reranker.py)
+    from ingest.reranker import get_reranker
+    logger.info("Warming up reranker model: %s", os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-v2-m3"))
+    reranker = get_reranker()
+    
+    # Test compute to ensure reranker is fully loaded
+    try:
+        _ = reranker.compute_score([("warmup query", "warmup passage")], normalize=True)
+    except Exception:
+        # Fallback untuk CrossEncoder
+        _ = reranker.predict([("warmup query", "warmup passage")])
+    logger.info("Reranker model warmed up successfully")
 
 
 if __name__ == "__main__":
