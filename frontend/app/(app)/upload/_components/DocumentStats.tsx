@@ -1,7 +1,5 @@
 "use client";
 
-import { useMemo } from "react";
-
 interface DocumentStat {
     label: string;
     value: number;
@@ -11,32 +9,10 @@ interface DocumentStat {
 }
 
 interface DocumentStatsProps {
-    docs: any[];
+    stats: { total: number; indexed: number; processing: number; failed: number };
 }
 
-export default function DocumentStats({ docs }: DocumentStatsProps) {
-    const stats = useMemo(() => {
-        const documentStats = {
-            total: docs.length,
-            indexed: 0,
-            processing: 0,
-            failed: 0,
-        };
-
-        for (const doc of docs) {
-            const status = doc.status.toLowerCase();
-            if (["indexed", "completed", "success"].includes(status)) {
-                documentStats.indexed++;
-            } else if (["processing", "pending"].includes(status)) {
-                documentStats.processing++;
-            } else if (["failed", "error"].includes(status)) {
-                documentStats.failed++;
-            }
-        }
-
-        return documentStats;
-    }, [docs]);
-
+export default function DocumentStats({ stats }: DocumentStatsProps) {
     const statCards = [
         {
             label: "Total Dokumen",

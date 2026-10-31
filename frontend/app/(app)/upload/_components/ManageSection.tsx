@@ -28,10 +28,11 @@ export default function ManageSection() {
 
     const [docs, setDocs] = useState<DocumentItem[]>([]);
     const [loadingDocs, setLoadingDocs] = useState(true);
+    const [stats, setStats] = useState({ total: 0, indexed: 0, processing: 0, failed: 0 });
     const [search, setSearch] = useState("");
     const [openDetail, setOpenDetail] = useState<OpenDetail>(null);
     const [chunks, setChunks] = useState<DocumentItem[]>([]);
-    const [logs, setLogs] = useState<any[]>([]);
+    const [logs, setLogs] = useState<Array<{id: number, step: string, message: string, created_at: string}>>([]);
     const [loadingDetail, setLoadingDetail] = useState(false);
     const [isUploadOpen, setIsUploadOpen] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -53,10 +54,6 @@ export default function ManageSection() {
     }, [isAdmin, router]);
 
     const [isUploadOpenState, setIsUploadOpenState] = useState(false);
-
-    useEffect(() => {
-        refreshDocs(1);
-    }, [statusFilter, typeFilter, dateSort]);
 
     const refreshDocs = async (page: number = 1) => {
         setLoadingDocs(true);
@@ -85,6 +82,24 @@ export default function ManageSection() {
             setLoadingDocs(false);
         }
     };
+
+    const fetchSummary = async () => {
+        try {
+            const data = await api.get<{
+                total: number;
+                indexed: number;
+                processing: number;
+                failed: number;
+            }>("/documents/summary/");
+            setStats(data);
+        } catch {
+            setStats({ total: 0, indexed: 0, processing: 0, failed: 0 });
+        }
+    };
+
+    useEffect(() => {
+        Promise.all([refreshDocs(1), fetchSummary()]);
+    }, [statusFilter, typeFilter, dateSort]);
 
     useEffect(() => {
         const hasProcessing = docs.some(
@@ -296,7 +311,7 @@ export default function ManageSection() {
                 setOpenMenuId(null);
             }
 
-            await refreshDocs(currentPage);
+            await Promise.all([refreshDocs(currentPage), fetchSummary()]);
         } catch {
             return;
         }
@@ -307,7 +322,7 @@ export default function ManageSection() {
             await api.post(`/ingest/${doc.id}/re-ingest/`, {});
 
             setOpenMenuId(null);
-            await refreshDocs(currentPage);
+            await Promise.all([refreshDocs(currentPage), fetchSummary()]);
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : "Gagal memulai re-ingest dokumen.";
             setUploadError(msg);
@@ -323,7 +338,7 @@ export default function ManageSection() {
             formData.append("document", file);
             await api.uploadFile("/ingest/upload/", formData);
             setIsUploadOpenState(false);
-            await refreshDocs(1);
+            await Promise.all([refreshDocs(1), fetchSummary()]);
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : "Gagal mengunggah dokumen.";
             setUploadError(msg);
@@ -343,7 +358,7 @@ export default function ManageSection() {
     return (
         <div className="flex h-full flex-col overflow-hidden">
             <div className="flex min-h-0 flex-1 flex-col gap-4 p-5">
-                <DocumentStats docs={docs} />
+                <DocumentStats stats={stats} />
 
                 <div className="shrink-0 flex flex-wrap items-center gap-3">
                     <div className="flex-1 min-w-[200px] flex items-center gap-3 rounded-2xl px-4 py-3 [background:rgba(255,255,255,0.1)] [border:1px_solid_rgba(255,255,255,0.18)] [box-shadow:0_2px_4px_rgba(0,0,0,0.15)] [backdrop-filter:blur(20px)] [-webkit-backdrop-filter:blur(20px)]">
