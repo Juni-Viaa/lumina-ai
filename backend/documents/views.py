@@ -60,7 +60,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
     def chunks(self, request, pk=None):
         """Mengembalikan daftar chunk untuk dokumen tertentu."""
         try:
-            document = Document.objects.get(pk=pk)
+            document = self.get_queryset().get(pk=pk)
         except Document.DoesNotExist:
             return Response(
                 {"detail": "Dokumen tidak ditemukan."},
@@ -74,7 +74,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
     def ingest_logs(self, request, pk=None):
         """Mengembalikan log ingest untuk dokumen tertentu."""
         try:
-            document = Document.objects.get(pk=pk)
+            document = self.get_queryset().get(pk=pk)
         except Document.DoesNotExist:
             return Response(
                 {"detail": "Dokumen tidak ditemukan."},

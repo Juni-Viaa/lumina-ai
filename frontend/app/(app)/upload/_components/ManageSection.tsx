@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { Fragment, useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 import { api } from "@/lib/api";
@@ -273,7 +273,8 @@ export default function ManageSection() {
 
                 setLogs(Array.isArray(data?.results) ? data.results : []);
             }
-        } catch {
+        } catch (error) {
+            console.error(`Failed to fetch ${type} for document ${doc.id}:`, error);
             if (type === "chunks") {
                 setChunks([]);
             } else {
@@ -564,149 +565,152 @@ export default function ManageSection() {
                                         ) : null;
 
                                         return (
-                                            <tr key={doc.id}>
-                                                <td className="p-4 text-center">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={selectedIds.has(doc.id)}
-                                                        onChange={() => toggleSelect(doc.id)}
-                                                        className="h-4 w-4 rounded border-gray-300"
-                                                    />
-                                                </td>
-                                                <td className="p-4">
-                                                    <p className="truncate text-sm font-medium text-[#1a3a52]">
-                                                        {doc.document_name}
-                                                    </p>
-                                                </td>
-                                                <td className="p-4">
-                                                    <div className="flex items-center gap-2">
-                                                        {doc.file_type?.toLowerCase() === "pdf" && (
-                                                            <svg className="h-4 w-4 text-red-500" fill="currentColor" viewBox="0 0 24 24">
-                                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2l5 5h-5V4zm-2.5 9.5c0 .83-.67 1.5-1.5 1.5H8v2H6.5v-6H9c.83 0 1.5.67 1.5 1.5v1zm5 0c0 .83-.67 1.5-1.5 1.5h-1v2h-1.5v-6h2.5c.83 0 1.5.67 1.5 1.5v1zm4.5-1.5h-2v1h2v1.5h-2v1.5h-1.5v-6h3.5v1z"/>
-                                                            </svg>
-                                                        )}
-                                                        {doc.file_type?.toLowerCase() === "docx" && (
-                                                            <svg className="h-4 w-4 text-blue-500" fill="currentColor" viewBox="0 0 24 24">
-                                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2l5 5h-5V4zM8 12h8v2H8v-2zm0 4h8v2H8v-2z"/>
-                                                            </svg>
-                                                        )}
-                                                        {doc.file_type?.toLowerCase() === "txt" && (
-                                                            <svg className="h-4 w-4 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
-                                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2l5 5h-5V4zM8 12h8v2H8v-2zm0 4h8v2H8v-2z"/>
-                                                            </svg>
-                                                        )}
-                                                        <span className="text-xs text-[#1a3a52]/60">
-                                                            {doc.file_type?.toUpperCase() || "-"}
+                                            <Fragment key={doc.id}>
+                                                <tr>
+                                                    <td className="p-4 text-center">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedIds.has(doc.id)}
+                                                            onChange={() => toggleSelect(doc.id)}
+                                                            className="h-4 w-4 rounded border-gray-300"
+                                                        />
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <p className="truncate text-sm font-medium text-[#1a3a52]">
+                                                            {doc.document_name}
+                                                        </p>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <div className="flex items-center gap-2">
+                                                            {doc.file_type?.toLowerCase() === "pdf" && (
+                                                                <svg className="h-4 w-4 text-red-500" fill="currentColor" viewBox="0 0 24 24">
+                                                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2l5 5h-5V4zm-2.5 9.5c0 .83-.67 1.5-1.5 1.5H8v2H6.5v-6H9c.83 0 1.5.67 1.5 1.5v1zm5 0c0 .83-.67 1.5-1.5 1.5h-1v2h-1.5v-6h2.5c.83 0 1.5.67 1.5 1.5v1zm4.5-1.5h-2v1h2v1.5h-2v1.5h-1.5v-6h3.5v1z"/>
+                                                                </svg>
+                                                            )}
+                                                            {doc.file_type?.toLowerCase() === "docx" && (
+                                                                <svg className="h-4 w-4 text-blue-500" fill="currentColor" viewBox="0 0 24 24">
+                                                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2l5 5h-5V4zM8 12h8v2H8v-2zm0 4h8v2H8v-2z"/>
+                                                                </svg>
+                                                            )}
+                                                            {doc.file_type?.toLowerCase() === "txt" && (
+                                                                <svg className="h-4 w-4 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
+                                                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2l5 5h-5V4zM8 12h8v2H8v-2zm0 4h8v2H8v-2z"/>
+                                                                </svg>
+                                                            )}
+                                                            <span className="text-xs text-[#1a3a52]/60">
+                                                                {doc.file_type?.toUpperCase() || "-"}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <p className="text-xs text-[#1a3a52]/60">
+                                                            {doc.size_human ?? `${Math.round(doc.size / 1024)} KB`}
+                                                        </p>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <p className="text-xs text-[#1a3a52]/60">
+                                                            {new Date(doc.created_at).toLocaleDateString("id-ID", {
+                                                                day: "numeric",
+                                                                month: "short",
+                                                                year: "numeric",
+                                                            })}
+                                                        </p>
+                                                    </td>
+                                                    <td className="p-4 text-center">
+                                                        <p className="text-xs text-[#1a3a52]/60">
+                                                            {chunkCount}
+                                                        </p>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide ${
+                                                            ["indexed", "completed", "success"].includes(doc.status.toLowerCase())
+                                                                ? "text-green-600 bg-green-50"
+                                                                : ["processing", "pending"].includes(doc.status.toLowerCase())
+                                                                    ? "text-orange-600 bg-orange-50"
+                                                                    : ["failed", "error"].includes(doc.status.toLowerCase())
+                                                                        ? "text-red-600 bg-red-50"
+                                                                        : "text-[#1a3a52]/60 bg-white/15"
+                                                        }`}>
+                                                            {["processing", "pending"].includes(doc.status.toLowerCase()) && (
+                                                                <svg className="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z" />
+                                                                </svg>
+                                                            )}
+                                                            {doc.status.toLowerCase().replace(/^./, doc.status[0].toUpperCase())}
                                                         </span>
-                                                    </div>
-                                                </td>
-                                                <td className="p-4">
-                                                    <p className="text-xs text-[#1a3a52]/60">
-                                                        {doc.size_human ?? `${Math.round(doc.size / 1024)} KB`}
-                                                    </p>
-                                                </td>
-                                                <td className="p-4">
-                                                    <p className="text-xs text-[#1a3a52]/60">
-                                                        {new Date(doc.created_at).toLocaleDateString("id-ID", {
-                                                            day: "numeric",
-                                                            month: "short",
-                                                            year: "numeric",
-                                                        })}
-                                                    </p>
-                                                </td>
-                                                <td className="p-4 text-center">
-                                                    <p className="text-xs text-[#1a3a52]/60">
-                                                        {chunkCount}
-                                                    </p>
-                                                </td>
-                                                <td className="p-4">
-                                                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide ${
-                                                        ["indexed", "completed", "success"].includes(doc.status.toLowerCase())
-                                                            ? "text-green-600 bg-green-50"
-                                                            : ["processing", "pending"].includes(doc.status.toLowerCase())
-                                                                ? "text-orange-600 bg-orange-50"
-                                                                : ["failed", "error"].includes(doc.status.toLowerCase())
-                                                                    ? "text-red-600 bg-red-50"
-                                                                    : "text-[#1a3a52]/60 bg-white/15"
-                                                    }`}>
-                                                        {["processing", "pending"].includes(doc.status.toLowerCase()) && (
-                                                            <svg className="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z" />
-                                                            </svg>
-                                                        )}
-                                                        {doc.status.toLowerCase().replace(/^./, doc.status[0].toUpperCase())}
-                                                    </span>
-                                                </td>
-                                                <td className="p-2 text-center">
-                                                    <div className="relative inline-block">
-                                                        <button
-                                                            onClick={() =>
-                                                                setOpenMenuId(
-                                                                    openMenuId === doc.id ? null : doc.id,
-                                                                )
-                                                            }
-                                                            className="flex h-7 w-7 items-center justify-center rounded-full text-[#1a6fa8] hover:bg-[#1a6fa8]/20 transition-colors"
-                                                        >
-                                                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01" />
-                                                            </svg>
-                                                        </button>
-                                                        {openMenuId === doc.id && (
-                                                            <div ref={menuRef} className="absolute right-0 z-10 mt-1 w-48 origin-top-right rounded-md bg-white shadow-2xl ring-1 ring-black/20">
-                                                                <div className="py-1">
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            toggleDetail(doc, "chunks");
-                                                                            setOpenMenuId(null);
-                                                                        }}
-                                                                        className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#1a6fa8] hover:bg-[#1a6fa8]/10"
-                                                                    >
-                                                                        <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
-                                                                        </svg>
-                                                                        Lihat Chunk
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            toggleDetail(doc, "logs");
-                                                                            setOpenMenuId(null);
-                                                                        }}
-                                                                        className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#1a6fa8] hover:bg-[#1a6fa8]/10"
-                                                                    >
-                                                                        <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.667 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.667m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.008v.008H6.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
-                                                                        </svg>
-                                                                        Lihat Ingest Log
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => handleReIngest(doc)}
-                                                                        className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#1a6fa8] hover:bg-[#1a6fa8]/10"
-                                                                    >
-                                                                        <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-                                                                        </svg>
-                                                                        Re-ingest Dokumen
-                                                                    </button>
-                                                                    <div className="border-t border-gray-100"></div>
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            handleDelete(doc);
-                                                                            setOpenMenuId(null);
-                                                                        }}
-                                                                        className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50"
-                                                                    >
-                                                                        <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                                                                            <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                                                                        </svg>
-                                                                        Hapus Dokumen
-                                                                    </button>
+                                                    </td>
+                                                    <td className="p-2 text-center">
+                                                        <div className="relative inline-block">
+                                                            <button
+                                                                onClick={() =>
+                                                                    setOpenMenuId(
+                                                                        openMenuId === doc.id ? null : doc.id,
+                                                                    )
+                                                                }
+                                                                className="flex h-7 w-7 items-center justify-center rounded-full text-[#1a6fa8] hover:bg-[#1a6fa8]/20 transition-colors"
+                                                            >
+                                                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01" />
+                                                                </svg>
+                                                            </button>
+                                                            {openMenuId === doc.id && (
+                                                                <div ref={menuRef} className="absolute right-0 z-10 mt-1 w-48 origin-top-right rounded-md bg-white shadow-2xl ring-1 ring-black/20">
+                                                                    <div className="py-1">
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                toggleDetail(doc, "chunks");
+                                                                                setOpenMenuId(null);
+                                                                            }}
+                                                                            className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#1a6fa8] hover:bg-[#1a6fa8]/10"
+                                                                        >
+                                                                            <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+                                                                            </svg>
+                                                                            Lihat Chunk
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                toggleDetail(doc, "logs");
+                                                                                setOpenMenuId(null);
+                                                                            }}
+                                                                            className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#1a6fa8] hover:bg-[#1a6fa8]/10"
+                                                                        >
+                                                                            <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.667 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.667m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.008v.008H6.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+                                                                            </svg>
+                                                                            Lihat Ingest Log
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => handleReIngest(doc)}
+                                                                            className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#1a6fa8] hover:bg-[#1a6fa8]/10"
+                                                                        >
+                                                                            <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                                                                            </svg>
+                                                                            Re-ingest Dokumen
+                                                                        </button>
+                                                                        <div className="border-t border-gray-100"></div>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                handleDelete(doc);
+                                                                                setOpenMenuId(null);
+                                                                            }}
+                                                                            className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                                                                        >
+                                                                            <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                                                            </svg>
+                                                                            Hapus Dokumen
+                                                                        </button>
+                                                                    </div>
                                                                 </div>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                {detailRow}
+                                            </Fragment>
                                         );
                                     })
                                 )}
