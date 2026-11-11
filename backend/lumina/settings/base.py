@@ -131,7 +131,6 @@ MEDIA_ROOT = BASE_DIR / "media"
 # ── Django REST Framework ───────────────────────────────────────────────────
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework.authentication.SessionAuthentication",
         "rest_framework.authentication.TokenAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
@@ -147,6 +146,7 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_THROTTLE_RATES": {
         "upload": "20/hour",
+        "auth": "10/minute",
     },
 }
 

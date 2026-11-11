@@ -42,7 +42,7 @@ def get_embeddings() -> HuggingFaceEmbeddings:
     global _embeddings
     if _embeddings is None:
         logger.info("Loading embedding model: %s", config.EMBEDDING_MODEL)
-        cache_folder = str(config.EMBEDDING_MODEL_CACHE_DIR) if config.EMBEDDING_MODEL_CACHE_DIR else None
+        cache_folder = None
         _embeddings = HuggingFaceEmbeddings(
             model_name=config.EMBEDDING_MODEL,
             cache_folder=cache_folder,

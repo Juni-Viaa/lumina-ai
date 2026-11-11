@@ -6,10 +6,12 @@ services:
     image: pgvector/pgvector:pg16
     container_name: lumina-django-postgres
     restart: unless-stopped
+    env_file:
+      - ./backend/.env
     environment:
-      POSTGRES_DB: lumina
-      POSTGRES_USER: lumina
-      POSTGRES_PASSWORD: lumina_secret
+      POSTGRES_DB: ${DB_NAME:-lumina}
+      POSTGRES_USER: ${DB_USER:-lumina}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-lumina_secret}
     ports:
       - "5433:5432"
     volumes:
@@ -45,21 +47,20 @@ services:
     volumes:
       - ./backend:/app
       - ./models:/app/models
-      - backend_app_data:/app/backend
     ports:
       - "8000:8000"
     env_file:
       - ./backend/.env
     environment:
-      DJANGO_ENV: development
-      DJANGO_DEBUG: "True"
-      DJANGO_ALLOWED_HOSTS: "*"
-      DB_NAME: lumina
-      DB_USER: lumina
-      DB_PASSWORD: lumina_secret
+      DJANGO_ENV: ${DJANGO_ENV:-development}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-False}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      DB_NAME: ${DB_NAME:-lumina}
+      DB_USER: ${DB_USER:-lumina}
+      DB_PASSWORD: ${DB_PASSWORD:-lumina_secret}
       DB_HOST: postgres
       DB_PORT: "5432"
-      CORS_ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       HF_HOME: /app/models/huggingface
@@ -89,16 +90,15 @@ services:
     volumes:
       - ./backend:/app
       - ./models:/app/models
-      - celery_app_data:/app/backend
     env_file:
       - ./backend/.env
     environment:
-      DJANGO_ENV: development
-      DJANGO_DEBUG: "True"
-      DJANGO_ALLOWED_HOSTS: "*"
-      DB_NAME: lumina
-      DB_USER: lumina
-      DB_PASSWORD: lumina_secret
+      DJANGO_ENV: ${DJANGO_ENV:-development}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-False}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      DB_NAME: ${DB_NAME:-lumina}
+      DB_USER: ${DB_USER:-lumina}
+      DB_PASSWORD: ${DB_PASSWORD:-lumina_secret}
       DB_HOST: postgres
       DB_PORT: "5432"
       CELERY_BROKER_URL: redis://redis:6379/0
@@ -133,12 +133,12 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      DJANGO_ENV: development
-      DJANGO_DEBUG: "True"
-      DJANGO_ALLOWED_HOSTS: "*"
-      DB_NAME: lumina
-      DB_USER: lumina
-      DB_PASSWORD: lumina_secret
+      DJANGO_ENV: ${DJANGO_ENV:-development}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-False}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      DB_NAME: ${DB_NAME:-lumina}
+      DB_USER: ${DB_USER:-lumina}
+      DB_PASSWORD: ${DB_PASSWORD:-lumina_secret}
       DB_HOST: postgres
       DB_PORT: "5432"
       CELERY_BROKER_URL: redis://redis:6379/0
@@ -172,13 +172,11 @@ services:
       - "3000:3000"
     environment:
       NODE_ENV: development
-      NEXT_PUBLIC_API_URL: http://localhost:8000
-      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api
+      NEXT_PUBLIC_API_URL: http://backend:8000
+      NEXT_PUBLIC_API_BASE_URL: http://backend:8000/api
     depends_on:
       - backend
 
 volumes:
   pgvector_data:
-  backend_app_data:
-  celery_app_data:
   celery_beat_data:

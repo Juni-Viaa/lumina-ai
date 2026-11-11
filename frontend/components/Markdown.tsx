@@ -46,10 +46,11 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
         } else if (italic) {
             nodes.push(<em key={key}>{renderInline(italic.slice(1, -1), key)}</em>);
         } else if (linkHref) {
+            const safehref = /^https?:\/\//i.test(linkHref) ? linkHref : "#";
             nodes.push(
                 <a
                     key={key}
-                    href={linkHref}
+                    href={safehref}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="font-medium text-[#1a6fa8] underline underline-offset-2"

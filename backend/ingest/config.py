@@ -10,18 +10,8 @@ from django.conf import settings
 # ── Paths ──────────────────────────────────────────────────────────────────────
 BASE_DIR = Path(settings.BASE_DIR)
 DOCUMENTS_DIR = BASE_DIR / "documents"
-VECTORSTORE_DIR = BASE_DIR / "vectorstore"
 
 DOCUMENTS_DIR.mkdir(exist_ok=True)
-VECTORSTORE_DIR.mkdir(exist_ok=True)
-
-# ── Embedding Model Cache ──────────────────────────────────────────────────────
-_cache_env = os.getenv("EMBEDDING_MODEL_CACHE_DIR", "")
-if _cache_env:
-    EMBEDDING_MODEL_CACHE_DIR: Path | None = Path(_cache_env)
-    EMBEDDING_MODEL_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-else:
-    EMBEDDING_MODEL_CACHE_DIR = None
 
 # ── API Keys ───────────────────────────────────────────────────────────────────
 GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")

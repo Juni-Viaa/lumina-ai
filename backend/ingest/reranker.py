@@ -30,7 +30,7 @@ def get_reranker() -> Any:
     if _reranker_instance is None:
         model_name = config.RERANKER_MODEL
         device = config.RERANKER_DEVICE
-        cache_folder = str(config.EMBEDDING_MODEL_CACHE_DIR) if config.EMBEDDING_MODEL_CACHE_DIR else None
+        cache_folder = None
 
         logger.info("Initializing Reranker model: %s on device: %s", model_name, device)
 

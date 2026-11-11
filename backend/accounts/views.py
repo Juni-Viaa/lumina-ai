@@ -5,6 +5,7 @@ from rest_framework.authentication import TokenAuthentication
 from rest_framework.authtoken.models import Token
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from .serializers import (
@@ -20,6 +21,7 @@ class RegisterView(APIView):
 
     authentication_classes = []
     permission_classes = [AllowAny]
+    throttle_scope = "auth"
 
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
@@ -37,6 +39,7 @@ class LoginView(APIView):
 
     authentication_classes = []
     permission_classes = [AllowAny]
+    throttle_scope = "auth"
 
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
@@ -72,6 +75,7 @@ class ChangePasswordView(APIView):
 
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
+    throttle_scope = "auth"
 
     def post(self, request):
         serializer = ChangePasswordSerializer(
