@@ -5,10 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { api } from "@/lib/api";
-import { setAuth, type AuthUser } from "@/lib/auth";
+import { setUser, type AuthUser } from "@/lib/auth";
 
 interface RegisterResponse {
-    token: string;
     user: AuthUser;
 }
 
@@ -47,7 +46,7 @@ export default function RegisterPage() {
                 password,
                 password_confirm: confirmPassword,
             });
-            setAuth(data.token, data.user);
+            setUser(data.user);
             router.replace("/");
             router.refresh();
         } catch (err) {

@@ -1,15 +1,21 @@
 /**
  * API client terpusat untuk semua komunikasi dengan backend Django.
  * Jangan sebar `fetch()` langsung di komponen — selalu lewat layer ini.
- * Setiap request otomatis menyertakan token autentikasi bila tersedia.
+ * Backend sekarang menggunakan HttpOnly cookie authentication.
  */
 
-import { getToken, clearAuth } from "./auth";
+import { clearAuth, getCsrfToken } from "./auth";
 
 const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
 
 const DEFAULT_TIMEOUT_MS = 60000;
+
+function getCookie(name: string): string | null {
+    if (typeof document === "undefined") return null;
+    const match = document.cookie.match(new RegExp(`(^|;\\s*)${name}=([^;]*)`));
+    return match ? decodeURIComponent(match[2]) : null;
+}
 
 interface RequestOptions extends Omit<RequestInit, "body"> {
     body?: unknown;
@@ -54,12 +60,10 @@ function formatApiError(payload: ApiErrorPayload | null, fallback: string): stri
     return parts.length ? parts.join("; ") : fallback;
 }
 
-function buildHeaders(headers?: HeadersInit): HeadersInit {
-    const token = getToken();
+function buildHeaders(headers?: HeadersInit): Record<string, string> {
     const base: Record<string, string> = {
         ...(headers as Record<string, string> | undefined),
     };
-    if (token) base["Authorization"] = `Token ${token}`;
     return base;
 }
 
@@ -77,6 +81,14 @@ async function request<T>(
             },
     );
 
+    const method = (options.method ?? "GET").toUpperCase();
+    if (["POST", "PUT", "PATCH", "DELETE"].includes(method) && !finalHeaders["X-CSRFToken"]) {
+        const csrf = getCookie("csrftoken") ?? (await getCsrfToken());
+        if (csrf) {
+            finalHeaders["X-CSRFToken"] = csrf;
+        }
+    }
+
     const controller = new AbortController();
     const timeoutId = timeout ?? DEFAULT_TIMEOUT_MS ? setTimeout(() => controller.abort(), timeout ?? DEFAULT_TIMEOUT_MS) : undefined;
 
@@ -84,6 +96,7 @@ async function request<T>(
         const response = await fetch(`${API_BASE_URL}${path}`, {
             ...options,
             headers: finalHeaders,
+            credentials: "include",  // 🔑 Critical: Include cookies
             body:
                 body === undefined
                     ? undefined
@@ -94,8 +107,14 @@ async function request<T>(
         });
 
         if (response.status === 401) {
+            if (typeof window !== "undefined") {
+                window.dispatchEvent(new Event("session:expired"));
+            }
             clearAuth();
-            window.location.href = "/login";
+            if (typeof window !== "undefined") {
+                window.location.reload();
+                window.location.href = "/login";
+            }
             throw new ApiError("Sesi login telah berakhir.", 401);
         }
 

@@ -5,10 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { api } from "@/lib/api";
-import { setAuth, type AuthUser } from "@/lib/auth";
+import { setUser, type AuthUser } from "@/lib/auth";
 
 interface LoginResponse {
-    token: string;
     user: AuthUser;
 }
 
@@ -36,7 +35,7 @@ export default function LoginPage() {
                 email: email.trim(),
                 password,
             });
-            setAuth(data.token, data.user);
+            setUser(data.user);
             router.replace("/");
             router.refresh();
         } catch (err) {

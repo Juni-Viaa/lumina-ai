@@ -131,6 +131,7 @@ MEDIA_ROOT = BASE_DIR / "media"
 # ── Django REST Framework ───────────────────────────────────────────────────
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
+        "accounts.auth.CookieSessionAuthentication",
         "rest_framework.authentication.TokenAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
@@ -161,6 +162,26 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 CORS_ALLOW_CREDENTIALS = True
+
+# ── Session Cookie Settings ──────────────────────────────────────────────────
+SESSION_COOKIE_NAME = "lumina_session"
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 7  # 7 days in seconds
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_SECURE = False  # Set True in production (HTTPS only)
+
+# ── CSRF Settings ────────────────────────────────────────────────────────────
+CSRF_COOKIE_HTTPONLY = False  # Frontend needs to read this for AJAX
+CSRF_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SECURE = False  # Set True in production
+CSRF_TRUSTED_ORIGINS = [
+    origin
+    for origin in os.environ.get(
+        "CORS_ALLOWED_ORIGINS",
+        "http://localhost:3000,http://127.0.0.1:3000",
+    ).split(",")
+    if origin
+]
 
 # ── Email ───────────────────────────────────────────────────────────────────
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"

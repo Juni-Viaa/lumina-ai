@@ -18,7 +18,10 @@ ALLOWED_HOSTS = [host for host in os.environ.get("DJANGO_ALLOWED_HOSTS", "").spl
 # ── Security headers ────────────────────────────────────────────────────────
 SECURE_SSL_REDIRECT = os.environ.get("DJANGO_SECURE_SSL_REDIRECT", "True") == "True"
 SESSION_COOKIE_SECURE = True
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Strict"
 CSRF_COOKIE_SECURE = True
+CSRF_COOKIE_HTTPONLY = False  # Frontend needs to read for AJAX
 SECURE_HSTS_SECONDS = 31536000  # 1 tahun
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True

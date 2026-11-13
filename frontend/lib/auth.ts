@@ -1,7 +1,14 @@
 /**
- * Auth/session helpers — menyimpan token & profil user di localStorage.
- * Sumber kebenaran: backend Django (TokenAuthentication DRF).
+ * Auth/session helpers — user session management via HttpOnly cookie.
+ * Sumber kebenaran: backend Django (CookieSessionAuthentication).
+ * 
+ * Cookie tidak bisa dibaca JavaScript (HttpOnly), jadi auth state harus
+ * dicek via backend endpoint /auth/me/.
+ * 
+ * localStorage digunakan hanya untuk menyimpan user profile (bukan token).
  */
+
+import { useState, useEffect } from "react";
 
 export interface AuthUser {
     id: number;
@@ -10,10 +17,17 @@ export interface AuthUser {
     role: "mahasiswa" | "admin";
     is_staff: boolean;
     created_at: string;
+    session_expires_at?: string;
 }
 
-const TOKEN_KEY = "lumina_token";
+export interface AuthState {
+    user: AuthUser | null;
+    sessionExpires: string | null;
+    isLoading: boolean;
+}
+
 const USER_KEY = "lumina_user";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
 
 function safeStorage(): Storage | null {
     if (typeof window === "undefined") return null;
@@ -24,11 +38,7 @@ function safeStorage(): Storage | null {
     }
 }
 
-export function getToken(): string | null {
-    return safeStorage()?.getItem(TOKEN_KEY) ?? null;
-}
-
-export function getUser(): AuthUser | null {
+function getUserFromStorage(): AuthUser | null {
     const raw = safeStorage()?.getItem(USER_KEY);
     if (!raw) return null;
     try {
@@ -38,24 +48,112 @@ export function getUser(): AuthUser | null {
     }
 }
 
-export function setAuth(token: string, user: AuthUser): void {
-    const storage = safeStorage();
-    if (!storage) return;
-    storage.setItem(TOKEN_KEY, token);
-    storage.setItem(USER_KEY, JSON.stringify(user));
-}
-
-export function setUser(user: AuthUser): void {
+function setUserInStorage(user: AuthUser): void {
     safeStorage()?.setItem(USER_KEY, JSON.stringify(user));
 }
 
-export function clearAuth(): void {
-    const storage = safeStorage();
-    if (!storage) return;
-    storage.removeItem(TOKEN_KEY);
-    storage.removeItem(USER_KEY);
+function clearUserFromStorage(): void {
+    safeStorage()?.removeItem(USER_KEY);
 }
 
-export function isAuthenticated(): boolean {
-    return Boolean(getToken());
+export async function checkSession(): Promise<AuthUser | null> {
+    try {
+        const response = await fetch(
+            `${API_BASE_URL}/auth/me/`,
+            {
+                credentials: "include",
+            }
+        );
+        
+        if (response.status === 200) {
+            const user = await response.json() as AuthUser;
+            setUserInStorage(user);
+            return user;
+        }
+        
+        return null;
+    } catch {
+        return null;
+    }
+}
+
+export async function getCsrfToken(): Promise<string | null> {
+    try {
+        const response = await fetch(
+            `${API_BASE_URL}/auth/csrf/`,
+            {
+                credentials: "include",
+            }
+        );
+        
+        if (response.status === 200) {
+            const data = await response.json();
+            return data.csrf_token ?? null;
+        }
+        return null;
+    } catch {
+        return null;
+    }
+}
+
+export async function logout(): Promise<void> {
+    try {
+        await fetch(
+            `${API_BASE_URL}/auth/logout/`,
+            {
+                method: "POST",
+                credentials: "include",
+            }
+        );
+    } catch {
+    }
+    clearUserFromStorage();
+}
+
+export function getUser(): AuthUser | null {
+    return getUserFromStorage();
+}
+
+export function setUser(user: AuthUser): void {
+    setUserInStorage(user);
+}
+
+export function clearAuth(): void {
+    clearUserFromStorage();
+}
+
+export function useAuth(): AuthState {
+    const [state, setState] = useState<AuthState>({
+        user: getUserFromStorage(),
+        sessionExpires: null,
+        isLoading: true,
+    });
+
+    useEffect(() => {
+        checkSession()
+            .then((user) => {
+                if (user) {
+                    setState({
+                        user,
+                        sessionExpires: user.session_expires_at ?? null,
+                        isLoading: false,
+                    });
+                } else {
+                    setState({
+                        user: null,
+                        sessionExpires: null,
+                        isLoading: false,
+                    });
+                }
+            })
+            .catch(() => {
+                setState({
+                    user: getUserFromStorage(),
+                    sessionExpires: null,
+                    isLoading: false,
+                });
+            });
+    }, []);
+
+    return state;
 }

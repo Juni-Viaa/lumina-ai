@@ -6,7 +6,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Image from "next/image";
 
 import { api } from "@/lib/api";
-import { clearAuth, getUser } from "@/lib/auth";
+import { getUser, logout } from "@/lib/auth";
 
 interface SidebarProps {
     isOpen: boolean;
@@ -98,7 +98,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     }
 
     function handleLogout() {
-        clearAuth();
+        logout();
         setAccountOpen(false);
         router.push("/login");
         onClose();

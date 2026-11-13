@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { api, ApiError } from "@/lib/api";
-import { clearAuth } from "@/lib/auth";
+import { logout } from "@/lib/auth";
 
 interface ShowMap {
     old: boolean;
@@ -139,7 +139,7 @@ export default function PasswordClient() {
                 confirm_password: confirmPassword,
             });
 
-            clearAuth();
+            logout();
             setSuccess(true);
             setOldPassword("");
             setNewPassword("");

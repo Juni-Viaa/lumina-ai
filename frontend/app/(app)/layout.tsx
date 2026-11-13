@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import BottomNav from "@/components/BottomNav";
-import { api, ApiError } from "@/lib/api";
-import { clearAuth, getToken, setUser, type AuthUser } from "@/lib/auth";
+import { setUser, checkSession } from "@/lib/auth";
+import { ApiError } from "@/lib/api";
 
 export default function AppLayout({
     children,
@@ -17,26 +17,21 @@ export default function AppLayout({
     const [ready, setReady] = useState(false);
 
     useEffect(() => {
-        const token = getToken();
-        if (!token) {
-            router.replace("/login");
-            return;
-        }
-
-        // Validasi token ke backend; bila tidak sah, arahkan ke login.
-        api
-            .get<AuthUser>("/auth/me/")
+        checkSession()
             .then((user) => {
-                setUser(user);
-                setReady(true);
+                if (user) {
+                    setUser(user);
+                    setReady(true);
+                } else {
+                    router.replace("/login");
+                }
             })
             .catch((err) => {
                 if (err instanceof ApiError && err.status === 401) {
-                    clearAuth();
                     router.replace("/login");
                 } else {
-                    // Token ada tapi jaringan/backend bermasalah — tetap tampil, data
-                    // akan gagal di-fetch bila memang tidak berizin.
+                    // Network/backend issue — still show page, data
+                    // will fail if not authorized.
                     setReady(true);
                 }
             });

@@ -1,7 +1,12 @@
-"""Serializers untuk endpoint autentikasi Lumina (token-based)."""
+"""Serializers untuk endpoint autentikasi Lumina (session-based)."""
 
+from datetime import timedelta
+
+from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
+from django.db.models import Q
+from django.utils import timezone
 from rest_framework import serializers
 
 User = get_user_model()
@@ -54,12 +59,19 @@ class RegisterSerializer(serializers.Serializer):
 class LoginSerializer(serializers.Serializer):
     """Validasi kredensial login."""
 
-    email = serializers.EmailField()
+    email = serializers.CharField(trim_whitespace=True)
     password = serializers.CharField(trim_whitespace=False)
 
     def validate(self, attrs: dict) -> dict:
-        email = (attrs.get("email") or "").strip().lower()
-        user = authenticate(username=email, password=attrs.get("password") or "")
+        identifier = (attrs.get("email") or "").strip()
+        password = attrs.get("password") or ""
+
+        target_user = User.objects.filter(
+            Q(email__iexact=identifier) | Q(username__iexact=identifier)
+        ).first()
+
+        username_to_auth = target_user.email if target_user else identifier
+        user = authenticate(username=username_to_auth, password=password)
         if user is None:
             raise serializers.ValidationError("Email atau password salah.")
         if not user.is_active:
@@ -89,3 +101,29 @@ class ChangePasswordSerializer(serializers.Serializer):
             )
         validate_password(attrs["new_password"], user=user)
         return attrs
+
+
+class SessionDeviceSerializer(serializers.Serializer):
+    """Session device info."""
+
+    device_name = serializers.CharField(max_length=255, required=False)
+    device_type = serializers.CharField(max_length=50, required=False)
+    os_name = serializers.CharField(max_length=100, required=False)
+    browser_name = serializers.CharField(max_length=100, required=False)
+    is_current = serializers.BooleanField()
+
+
+class SessionSerializer(serializers.Serializer):
+    """Session data untuk list/revoke endpoints."""
+
+    session_key = serializers.UUIDField(format="hex")
+    created_at = serializers.DateTimeField()
+    expires_at = serializers.DateTimeField()
+    last_activity = serializers.DateTimeField()
+    is_active = serializers.BooleanField()
+    is_expired = serializers.SerializerMethodField()
+    device_info = SessionDeviceSerializer(required=False, many=True)
+
+    def get_is_expired(self, obj) -> bool:
+        """Calculate if session is expired."""
+        return obj.expires_at <= timezone.now()
