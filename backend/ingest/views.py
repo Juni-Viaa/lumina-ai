@@ -171,6 +171,9 @@ class IngestUploadView(APIView):
 
         session_id = str(uuid.uuid4())
 
+        image_ext = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp"}
+        is_ocr = suffix in image_ext
+
         if document_id is None:
             document = DocumentModel.objects.create(
                 user_id=request.user.id,
@@ -180,6 +183,7 @@ class IngestUploadView(APIView):
                 size=file.size,
                 status=DocumentModel.Status.PROCESSING,
                 ingest_session_id=session_id,
+                is_ocr=is_ocr,
             )
             _log_ingest(document.id, "init", f"Upload baru: {file.name}", session_id)
         else:

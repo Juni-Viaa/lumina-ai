@@ -179,12 +179,10 @@ class IngestServicesUnitTest(TestCase):
         docx_path = Path(self.temp_dir) / "test.docx"
         docx_path.write_bytes(b"PK\x03\x04 dummy docx content")
 
-        with patch("ingest.services.Docx2txtLoader") as mock_loader_cls:
-            mock_loader = MagicMock()
-            mock_loader.load.return_value = [
-                LCDocument(page_content="Isi dari file Word docx pengujian Lumina.", metadata={})
+        with patch("ingest.services._load_docx_hybrid") as mock_loader:
+            mock_loader.return_value = [
+                LCDocument(page_content="Isi dari file Word docx pengujian Lumina.", metadata={"source_file": "test.docx"})
             ]
-            mock_loader_cls.return_value = mock_loader
 
             docs = _load_document(docx_path, document_id=None, session_id=None)
             self.assertEqual(len(docs), 1)
@@ -205,8 +203,8 @@ class IngestServicesUnitTest(TestCase):
         self.assertEqual(len(docs_latin), 1)
 
     def test_load_document_unsupported_extension(self):
-        invalid_path = Path(self.temp_dir) / "image.png"
-        invalid_path.write_bytes(b"PNG fake data")
+        invalid_path = Path(self.temp_dir) / "data.xyz"
+        invalid_path.write_bytes(b"XYZ fake data")
         with self.assertRaises(ValueError) as ctx:
             _load_document(invalid_path, document_id=None, session_id=None)
         self.assertIn("Unsupported extension", str(ctx.exception))
@@ -719,7 +717,7 @@ class RetrievalUnitTest(TestCase):
         self.assertEqual(results[0].id, self.chunk1.id)
 
         context = _format_context(results)
-        self.assertIn("[Excerpt 1 — Panduan PBL.pdf, p.2]", context)
+        self.assertIn("[Excerpt 1 — Panduan PBL.pdf, hal. 1", context)
         self.assertIn("Bab 1: Pendahuluan", context)
 
     def test_rrf_fusion(self):

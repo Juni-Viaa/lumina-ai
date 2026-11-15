@@ -11,10 +11,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     TORCH_HOME=/app/models/torch \
     EMBEDDING_MODEL_CACHE_DIR=/app/models
 
-# Install system dependencies (psycopg2, build tools, libmagic for MIME detection)
+# Install system dependencies (psycopg2, build tools, OpenCV, Poppler, libmagic)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libice6 \
+    poppler-utils \
     libmagic1 \
     curl \
     && rm -rf /var/lib/apt/lists/*

@@ -19,7 +19,7 @@ interface DocumentItem {
     chunk_count?: number;
 }
 
-type OpenDetail = { documentId: number; type: "chunks" | "logs" } | null;
+type OpenDetail = { documentId: number; type: "chunks" | "logs" | "visual" } | null;
 
 export default function ManageSection() {
     const router = useRouter();
@@ -33,6 +33,11 @@ export default function ManageSection() {
     const [openDetail, setOpenDetail] = useState<OpenDetail>(null);
     const [chunks, setChunks] = useState<DocumentItem[]>([]);
     const [logs, setLogs] = useState<Array<{id: number, step: string, message: string, created_at: string}>>([]);
+    const [visualGroups, setVisualGroups] = useState<Array<{
+        imageRef: string;
+        ocr: { chunk_text: string; metadata?: { ocr_confidence?: number } }[];
+        vision: { chunk_text: string }[];
+    }>>([]);
     const [loadingDetail, setLoadingDetail] = useState(false);
     const [isUploadOpen, setIsUploadOpen] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -243,7 +248,7 @@ export default function ManageSection() {
         await refreshDocs(currentPage);
     }
 
-    async function toggleDetail(doc: DocumentItem, type: "chunks" | "logs") {
+    async function toggleDetail(doc: DocumentItem, type: "chunks" | "logs" | "visual") {
         if (openDetail?.documentId === doc.id && openDetail.type === type) {
             setOpenDetail(null);
             return;
@@ -266,19 +271,43 @@ export default function ManageSection() {
                 const data = await api.get<{ results: any[] }>(`/documents/${doc.id}/chunks/`);
 
                 setChunks(Array.isArray(data?.results) ? data.results : []);
-            } else {
+            } else if (type === "logs") {
                 const data = await api.get<{ results: any[] }>(
                     `/documents/${doc.id}/ingest_logs/`,
                 );
 
                 setLogs(Array.isArray(data?.results) ? data.results : []);
+            } else if (type === "visual") {
+                const data = await api.get<
+                    | Array<{
+                          imageRef: string;
+                          ocr: { chunk_text: string; metadata?: { ocr_confidence?: number } }[];
+                          vision: { chunk_text: string }[];
+                      }>
+                    | {
+                          results?: Array<{
+                              imageRef: string;
+                              ocr: { chunk_text: string; metadata?: { ocr_confidence?: number } }[];
+                              vision: { chunk_text: string }[];
+                          }>;
+                      }
+                >(`/documents/${doc.id}/visual/`);
+
+                const rawList = Array.isArray(data)
+                    ? data
+                    : Array.isArray(data?.results)
+                    ? data.results
+                    : [];
+                setVisualGroups(rawList);
             }
         } catch (error) {
             console.error(`Failed to fetch ${type} for document ${doc.id}:`, error);
             if (type === "chunks") {
                 setChunks([]);
-            } else {
+            } else if (type === "logs") {
                 setLogs([]);
+            } else if (type === "visual") {
+                setVisualGroups([]);
             }
         } finally {
             setLoadingDetail(false);
@@ -507,6 +536,7 @@ export default function ManageSection() {
                                         const isExpanded = openDetail?.documentId === doc.id;
                                         const isChunks = openDetail?.type === "chunks";
                                         const isLogs = openDetail?.type === "logs";
+                                        const isVisual = openDetail?.type === "visual";
 
                                         const detailRow = isExpanded ? (
                                             <tr key={`detail-${doc.id}`} className="bg-white/5">
@@ -514,7 +544,7 @@ export default function ManageSection() {
                                                     <div className="overflow-hidden border-t border-white/10 bg-white/10">
                                                         <div className="p-4">
                                                             <h4 className="mb-3 text-sm font-semibold text-[#1a3a52]">
-                                                                {isChunks ? `Chunk (${chunks.length} item)` : `Ingest Log (${logs.length} item)`}
+                                                                {isChunks ? `Chunk (${chunks.length} item)` : isLogs ? `Ingest Log (${logs.length} item)` : `OCR & Vision (${visualGroups.length} gambar)`}
                                                             </h4>
                                                             {loadingDetail ? (
                                                                 <p className="text-sm text-[#1a3a52]/50">Memuat data...</p>
@@ -537,23 +567,71 @@ export default function ManageSection() {
                                                                         ))}
                                                                     </div>
                                                                 )
-                                                            ) : logs.length === 0 ? (
-                                                                <p className="text-sm text-[#1a3a52]/50">Tidak ada log tersedia.</p>
-                                                            ) : (
-                                                                <div className="max-h-64 overflow-y-auto space-y-2 pr-2">
-                                                                    {logs.map((log: any) => (
-                                                                        <div key={log.id} className="rounded-lg bg-white/5 p-3">
-                                                                            <div className="mb-1 flex items-center justify-between">
-                                                                                <span className="text-xs font-medium text-[#1a6fa8]">
-                                                                                    {log.step}
-                                                                                </span>
-                                                                                <span className="text-[10px] text-[#1a3a52]/40">
-                                                                                    {log.created_at}
-                                                                                </span>
+                                                            ) : isLogs ? (
+                                                                logs.length === 0 ? (
+                                                                    <p className="text-sm text-[#1a3a52]/50">Tidak ada log tersedia.</p>
+                                                                ) : (
+                                                                    <div className="max-h-64 overflow-y-auto space-y-2 pr-2">
+                                                                        {logs.map((log: any) => (
+                                                                            <div key={log.id} className="rounded-lg bg-white/5 p-3">
+                                                                                <div className="mb-1 flex items-center justify-between">
+                                                                                    <span className="text-xs font-medium text-[#1a6fa8]">
+                                                                                        {log.step}
+                                                                                    </span>
+                                                                                    <span className="text-[10px] text-[#1a3a52]/40">
+                                                                                        {log.created_at}
+                                                                                    </span>
+                                                                                </div>
+                                                                                <p className="text-xs text-[#1a3a52]/70">
+                                                                                    {log.message}
+                                                                                </p>
                                                                             </div>
-                                                                            <p className="text-xs text-[#1a3a52]/70">
-                                                                                {log.message}
-                                                                            </p>
+                                                                        ))}
+                                                                    </div>
+                                                                )
+                                                            ) : visualGroups.length === 0 ? (
+                                                                <p className="text-sm text-[#1a3a52]/50">
+                                                                    Dokumen ini tidak memiliki hasil OCR atau Gemini Vision.
+                                                                </p>
+                                                            ) : (
+                                                                <div className="space-y-3">
+                                                                    {visualGroups.map((group) => (
+                                                                        <div key={group.imageRef} className="rounded-2xl bg-white/20 p-3">
+                                                                            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                                                                <p className="text-xs font-semibold text-[#1a3a52]">
+                                                                                    {group.imageRef}
+                                                                                </p>
+                                                                                <div className="flex gap-1.5 text-[10px]">
+                                                                                    <span className="rounded-full bg-amber-500/10 px-2 py-1 text-amber-700">
+                                                                                        {group.ocr.length} OCR
+                                                                                    </span>
+                                                                                    <span className="rounded-full bg-violet-500/10 px-2 py-1 text-violet-700">
+                                                                                        {group.vision.length} Vision
+                                                                                    </span>
+                                                                                </div>
+                                                                            </div>
+
+                                                                            <div className="grid gap-3 lg:grid-cols-2">
+                                                                                <div className="rounded-xl border border-amber-500/15 bg-amber-50/35 p-3">
+                                                                                    <p className="mb-2 text-xs font-semibold text-amber-700">
+                                                                                        OCR
+                                                                                        {group.ocr[0]?.metadata?.ocr_confidence != null &&
+                                                            ` · keyakinan ${Math.round(group.ocr[0].metadata.ocr_confidence * 100)}%`}
+                                                                                    </p>
+                                                                                    <p className="whitespace-pre-wrap text-xs leading-relaxed text-[#1a3a52]/70">
+                                                                                        {group.ocr.map((chunk) => chunk.chunk_text).join("\n\n") || "Tidak ada hasil OCR."}
+                                                                                    </p>
+                                                                                </div>
+
+                                                                                <div className="rounded-xl border border-violet-500/15 bg-violet-50/35 p-3">
+                                                                                    <p className="mb-2 text-xs font-semibold text-violet-700">
+                                                                                        Gemini Vision
+                                                                                    </p>
+                                                                                    <p className="whitespace-pre-wrap text-xs leading-relaxed text-[#1a3a52]/70">
+                                                                                        {group.vision.map((chunk) => chunk.chunk_text).join("\n\n") || "Tidak ada hasil Vision."}
+                                                                                    </p>
+                                                                                </div>
+                                                                            </div>
                                                                         </div>
                                                                     ))}
                                                                 </div>
@@ -680,6 +758,18 @@ export default function ManageSection() {
                                                                                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.667 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.667m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.008v.008H6.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
                                                                             </svg>
                                                                             Lihat Ingest Log
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                toggleDetail(doc, "visual");
+                                                                                setOpenMenuId(null);
+                                                                            }}
+                                                                            className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#1a6fa8] hover:bg-[#1a6fa8]/10"
+                                                                        >
+                                                                            <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3.75a2.25 2.25 0 0 1 2.25-2.25h15a2.25 2.25 0 0 1 2.25 2.25V21a2.25 2.25 0 0 1-2.25 2.25H4.5a2.25 2.25 0 0 1-2.25-2.25V3.75ZM7.5 10.5a3 3 0 1 1 6 0 3 3 0 0 1-6 0Zm-3 4.5v3.75c0 .414.336.75.75.75h9.75a.75.75 0 0 0 .75-.75v-3.75m-11.25 0h11.25" />
+                                                                            </svg>
+                                                                            Lihat OCR & Vision
                                                                         </button>
                                                                         <button
                                                                             onClick={() => handleReIngest(doc)}

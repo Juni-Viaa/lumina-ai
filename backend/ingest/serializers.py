@@ -19,9 +19,15 @@ class IngestUploadSerializer(serializers.Serializer):
     document = serializers.FileField(required=True)
     document_id = serializers.IntegerField(required=False, allow_null=True)
 
-    ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt"}
+    ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt", ".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp"}
     MAX_SIZE_KB = 102400  # 100 MB
     ALLOWED_MIME_TYPES = {
+        ".jpg": {"image/jpeg"},
+        ".jpeg": {"image/jpeg"},
+        ".png": {"image/png"},
+        ".bmp": {"image/bmp", "image/x-ms-bmp"},
+        ".tiff": {"image/tiff"},
+        ".webp": {"image/webp"},
         ".pdf": {"application/pdf", "application/x-pdf"},
         ".docx": {
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -95,6 +101,16 @@ class IngestUploadSerializer(serializers.Serializer):
             elif suffix == ".docx" and not initial_bytes.startswith(b"PK\x03\x04"):
                 raise serializers.ValidationError("Konten file bukan dokumen Word (.docx) yang valid.")
 
+        if suffix in {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp"}:
+            from PIL import Image, UnidentifiedImageError
+
+            try:
+                value.seek(0)
+                with Image.open(value) as image:
+                    image.verify()
+            except (UnidentifiedImageError, OSError, ValueError) as exc:
+                raise serializers.ValidationError("Konten file bukan gambar yang valid.") from exc
+        value.seek(0)
         return value
 
     def validate_document_id(self, value):

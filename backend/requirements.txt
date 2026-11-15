@@ -26,6 +26,13 @@ FlagEmbedding; sys_platform != 'win32'
 pypdf
 python-docx
 docx2txt
+pillow
+
+# ── OCR ────────────────────────────────────────────────────────────────
+paddleocr==3.7.0
+paddlepaddle==3.3.1
+pdf2image==1.17.0
+opencv-contrib-python==4.10.0.84
 
 # MIME type detection
 # python-magic for Linux/Docker, python-magic-bin for Windows

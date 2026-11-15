@@ -17,11 +17,26 @@ class DocumentViewSet(viewsets.ModelViewSet):
     pagination_class = DocumentPagination
 
     def get_queryset(self):
-        """Filter dokumen berdasarkan user yang sedang login."""
+        """Filter dokumen berdasarkan user yang sedang login dan query parameters."""
         user = self.request.user
         if user.role == "admin":
-            return Document.objects.filter(deleted_at__isnull=True)
-        return Document.objects.filter(user=user, deleted_at__isnull=True)
+            qs = Document.objects.filter(deleted_at__isnull=True)
+        else:
+            qs = Document.objects.filter(user=user, deleted_at__isnull=True)
+
+        status_param = self.request.query_params.get("status")
+        if status_param and status_param != "all":
+            qs = qs.filter(status=status_param)
+
+        file_type = self.request.query_params.get("file_type")
+        if file_type and file_type != "all":
+            qs = qs.filter(file_type__iexact=file_type)
+
+        doc_name = self.request.query_params.get("document_name")
+        if doc_name:
+            qs = qs.filter(document_name__icontains=doc_name)
+
+        return qs.order_by("-created_at")
 
     @action(detail=False, methods=["get"], url_path="summary")
     def summary(self, request):
@@ -83,6 +98,40 @@ class DocumentViewSet(viewsets.ModelViewSet):
         logs = IngestLog.objects.filter(document=document).order_by("-created_at")
         serializer = IngestLogSerializer(logs, many=True)
         return Response({"results": serializer.data})
+
+    @action(detail=True, methods=["get"])
+    def visual(self, request, pk=None):
+        """Mengembalikan hasil OCR dan Vision yang dikelompokkan berdasarkan image_ref."""
+        try:
+            document = self.get_queryset().get(pk=pk)
+        except Document.DoesNotExist:
+            return Response(
+                {"detail": "Dokumen tidak ditemukan."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        chunks = Chunk.objects.filter(
+            document=document,
+            deleted_at__isnull=True,
+        ).order_by("page", "id")
+
+        # ponytail: in-memory group by image_ref suffices for typical docs (<1k chunks); add DB-level JSON aggregation when chunk counts exceed thousands per doc.
+        groups: dict[str, dict] = {}
+        for chunk in chunks:
+            meta = chunk.metadata or {}
+            source_type = meta.get("source_type")
+            if source_type not in ("ocr", "vision"):
+                continue
+            key = meta.get("image_ref") or f"chunk-{chunk.id}"
+            if key not in groups:
+                groups[key] = {"imageRef": key, "ocr": [], "vision": []}
+            item = {"chunk_text": chunk.chunk_text, "metadata": meta}
+            if source_type == "ocr":
+                groups[key]["ocr"].append(item)
+            else:
+                groups[key]["vision"].append(item)
+
+        return Response(list(groups.values()))
 
     def perform_create(self, serializer):
         """Set user_id otomatis dari user yang sedang login."""

@@ -144,14 +144,30 @@ async function request<T>(
 
 export const api = {
     get: <T>(path: string, options?: RequestOptions) => request<T>(path, options),
-    post: <T>(path: string, body: unknown, options?: Omit<RequestOptions, "body">) =>
+    post: <T>(path: string, body?: unknown, options?: Omit<RequestOptions, "body">) =>
         request<T>(path, { method: "POST", body, ...options }),
-    patch: <T>(path: string, body: unknown, options?: Omit<RequestOptions, "body">) =>
+    patch: <T>(path: string, body?: unknown, options?: Omit<RequestOptions, "body">) =>
         request<T>(path, { method: "PATCH", body, ...options }),
     delete: <T>(path: string, options?: RequestOptions) =>
         request<T>(path, { method: "DELETE", ...options }),
     uploadFile: <T>(path: string, formData: FormData, options?: Omit<RequestOptions, "body" | "isFormData">) =>
         request<T>(path, { method: "POST", body: formData, isFormData: true, ...options }),
+};
+
+export interface DocumentItem {
+    id: number;
+    document_name: string;
+    size: number;
+    file_type: string;
+    status: string;
+    is_ocr: boolean;
+}
+
+export const documentsApi = {
+    list: () => api.get<{ results: DocumentItem[] }>("/documents/"),
+    upload: (formData: FormData) => api.uploadFile<{ message: string }>("/ingest/upload/", formData).then((res) => res),
+    remove: (id: number) => api.delete<void>(`/documents/${id}/`).then(() => undefined),
+    ingest: (id: number) => api.post<{ message: string; document_id: number; session_id: string; status: string }>(`/ingest/${id}/re-ingest/`).then((res) => res),
 };
 
 export type { RequestOptions };

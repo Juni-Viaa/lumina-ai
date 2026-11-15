@@ -96,6 +96,7 @@ class Document(models.Model):
     status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.PROCESSING
     )
+    is_ocr = models.BooleanField(default=False)
     ingest_session_id = models.UUIDField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -122,6 +123,7 @@ class Chunk(models.Model):
     page = models.IntegerField(null=True, blank=True)
     embedding = VectorField(dimensions=1024, null=True, blank=True)
     search_vector = SearchVectorField(null=True, blank=True)
+    metadata = models.JSONField(null=True, blank=True, default=dict)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
