@@ -1,13 +1,51 @@
 @import "tailwindcss";
 
 :root {
+  /* Brand Tokens - Light */
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-subtle: rgba(37, 99, 235, 0.12);
+  --accent: #06b6d4;
+
   --background: #c9e8f7;
-  --foreground: #1a3a52;
+  --foreground: #0f2436;
+  --foreground-muted: #334e68;
+
+  /* Glassmorphism Tokens - Light */
+  --glass-bg: rgba(255, 255, 255, 0.65);
+  --glass-bg-subtle: rgba(255, 255, 255, 0.35);
+  --glass-border: rgba(255, 255, 255, 0.5);
+  --glass-blur: 18px;
+  --glass-shadow: 0 8px 32px rgba(31, 38, 135, 0.1);
+  --bg-overlay: linear-gradient(135deg, rgba(239, 246, 255, 0.7) 0%, rgba(201, 232, 247, 0.6) 100%);
+}
+
+[data-theme="dark"],
+.dark {
+  /* Brand Tokens - Dark */
+  --primary: #3b82f6;
+  --primary-hover: #60a5fa;
+  --primary-subtle: rgba(59, 130, 246, 0.18);
+  --accent: #22d3ee;
+
+  --background: #09101d;
+  --foreground: #f0f6fc;
+  --foreground-muted: #94a3b8;
+
+  /* Glassmorphism Tokens - Dark */
+  --glass-bg: rgba(15, 23, 42, 0.72);
+  --glass-bg-subtle: rgba(30, 41, 59, 0.55);
+  --glass-border: rgba(59, 130, 246, 0.22);
+  --glass-blur: 20px;
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  --bg-overlay: linear-gradient(135deg, rgba(9, 16, 29, 0.92) 0%, rgba(15, 23, 42, 0.95) 100%);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-accent: var(--accent);
   --font-sans: var(--font-space-grotesk);
 }
 
@@ -20,51 +58,76 @@
 }
 
 body {
-  background-color: #c9e8f7;
-  background-image: url("/images/Background.png");
+  background-color: var(--background);
+  background-image: var(--bg-overlay), url("/images/Background.png");
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
   color: var(--foreground);
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
-/* ── Glassmorphism panels (app) ───────────────────────────────────── */
+/* ── Glassmorphism utilities ────────────────────────────────────────── */
 .glass-panel {
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  box-shadow: 0 4px 4px rgba(0, 0, 0, 0.25);
-  backdrop-filter: blur(30px);
-  -webkit-backdrop-filter: blur(30px);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border-radius: 20px;
 }
 
 .glass-inner {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: var(--glass-bg-subtle);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
 }
 
-/* ── Glassmorphism panels (auth / guest) ──────────────────────────── */
+.glass-card {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-radius: 16px;
+  transition: all 0.2s ease-in-out;
+}
+
+.glass-card:hover {
+  border-color: rgba(59, 130, 246, 0.35);
+  box-shadow: 0 10px 36px rgba(37, 99, 235, 0.16);
+}
+
+.glass-input {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.glass-input:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-subtle);
+}
+
+/* ── Auth / Guest Glass Panels ─────────────────────────────────────── */
 .guest-glass-panel {
-  background: rgba(255, 255, 255, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  box-shadow:
-    0 4px 24px rgba(100, 160, 200, 0.15),
-    0 1px 4px rgba(0, 0, 0, 0.08);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
   backdrop-filter: blur(28px);
   -webkit-backdrop-filter: blur(28px);
   border-radius: 20px;
 }
 
 .guest-glass-inner {
-  background: rgba(255, 255, 255, 0.28);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.7),
-    inset 0 -1px 0 rgba(180, 210, 230, 0.2),
-    0 2px 8px rgba(0, 0, 0, 0.06);
+  background: var(--glass-bg-subtle);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }
@@ -81,10 +144,10 @@ body {
 
 /* ── Sidebar nav ──────────────────────────────────────────────────── */
 .sidebar-nav-item:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--glass-bg-subtle);
 }
 .sidebar-nav-active {
-  background: rgba(219, 234, 254, 0.65);
+  background: var(--primary-subtle);
 }
 
 /* ── Scrollbar ────────────────────────────────────────────────────── */
@@ -95,7 +158,7 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(26, 111, 168, 0.2);
+  background: rgba(37, 99, 235, 0.25);
   border-radius: 4px;
 }
 
@@ -118,6 +181,22 @@ body {
 }
 .typing-dot:nth-child(3) {
   animation-delay: 0.4s;
+}
+
+/* ── Message entrance animation ───────────────────────────────────── */
+@keyframes messageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-message-enter {
+  animation: messageEnter 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* ── History item typing animation ─────────────────────────────────── */
@@ -151,45 +230,32 @@ body {
   position: relative;
   margin-left: 2px;
   animation: typingCursor 0.8s infinite;
-  color: #3b82f6;
+  color: var(--primary);
   font-weight: 300;
 }
 
-/* ── Mobile drawer overlay ────────────────────────────────────────── */
+/* ── Reduced motion compliance ────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .typing-dot,
+  .typing-animation,
+  .typing-animation::after {
+    animation: none !important;
+  }
+  * {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Mobile drawer overlay — dihilangkan, sidebar sekarang selalu static via Tailwind ── */
 #sidebar-overlay {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.35);
+  background: rgba(0, 0, 0, 0.4);
   z-index: 40;
 }
 #sidebar-overlay.active {
   display: block;
-}
-
-/* ── Mobile sidebar drawer ────────────────────────────────────────── */
-@media (max-width: 767px) {
-  #app-sidebar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    z-index: 50;
-    width: 72vw;
-    max-width: 280px;
-    transform: translateX(-100%);
-    transition: transform 0.25s ease;
-    border-radius: 0 20px 20px 0;
-  }
-  #app-sidebar.open {
-    transform: translateX(0);
-  }
-  #main-content {
-    padding-bottom: 80px;
-  }
-  #main-content > main {
-    overflow: visible;
-  }
 }
 
 /* ── Bottom navigation bar — mobile only ──────────────────────────── */
@@ -205,69 +271,14 @@ body {
     right: 0;
     height: 64px;
     z-index: 40;
-    background: rgba(255, 255, 255, 0.55);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-top: 1px solid rgba(255, 255, 255, 0.4);
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border-top: 1px solid var(--glass-border);
     align-items: center;
     justify-content: space-around;
     padding: 0 8px;
   }
 }
 
-/* ── Tablet: icon-only sidebar ────────────────────────────────────── */
-@media (min-width: 768px) and (max-width: 1023px) {
-  #app-sidebar {
-    width: 68px;
-    min-width: 68px;
-  }
-  #app-sidebar .nav-label,
-  #app-sidebar .sidebar-brand-name,
-  #app-sidebar .history-section,
-  #app-sidebar .logout-label {
-    display: none !important;
-  }
-  #app-sidebar .sidebar-logo-wrap {
-    padding: 0;
-  }
-  #app-sidebar .sidebar-logo-wrap > div {
-    width: 44px;
-    height: 36px;
-    margin: 0 auto;
-    padding: 0;
-    justify-content: center;
-    overflow: hidden;
-  }
-  #app-sidebar .sidebar-logo-wrap img {
-    width: 36px !important;
-    height: 28px !important;
-    opacity: 0.8;
-  }
-  #app-sidebar .sidebar-nav-item {
-    justify-content: center;
-    padding-left: 8px;
-    padding-right: 8px;
-    gap: 0;
-  }
-  #app-sidebar nav img {
-    width: 22px !important;
-    height: 22px !important;
-    min-width: 22px;
-    opacity: 0.75;
-  }
-  #app-sidebar form > div {
-    justify-content: center;
-    padding: 0 4px;
-  }
-  #app-sidebar form .sidebar-nav-item {
-    justify-content: center;
-    padding-left: 8px;
-    padding-right: 8px;
-  }
-  #app-sidebar form img {
-    width: 22px !important;
-    height: 22px !important;
-    min-width: 22px;
-    opacity: 0.75;
-  }
-}
+/* ── Tablet & desktop: sidebar diatur sepenuhnya oleh Tailwind di Sidebar.tsx ── */

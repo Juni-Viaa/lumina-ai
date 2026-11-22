@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 import { api } from "@/lib/api";
 import { setUser, type AuthUser } from "@/lib/auth";
@@ -71,9 +72,11 @@ export default function LoginPage() {
                 <div className="relative z-10 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/15 p-2 backdrop-blur-md border border-white/30 shadow-inner">
-                            <img
+                            <Image
                                 src="/images/icons/Logo.png"
                                 alt="Lumina Logo"
+                                width={32}
+                                height={32}
                                 className="h-full w-full object-contain drop-shadow"
                             />
                         </div>
@@ -259,31 +262,33 @@ export default function LoginPage() {
             {/* ── Right Panel (50% Desktop, Full Width Mobile) ────────────────── */}
             <div
                 className="relative flex h-full w-full items-center justify-center p-4 sm:p-6 lg:w-1/2 lg:p-8 overflow-hidden bg-cover bg-center"
-                style={{ backgroundImage: "url('/images/Background.png')" }}
+                style={{ backgroundImage: "var(--bg-overlay), url('/images/Background.png')" }}
             >
-                {/* Glass Card Form (AC: backdrop-filter blur(16px), rounded 24px) */}
-                <div className="relative w-full max-w-md overflow-hidden rounded-[24px] border border-white/60 bg-white/65 p-6 sm:p-8 shadow-[0_12px_40px_rgba(26,111,168,0.15)] backdrop-blur-[16px] transition-all">
+                {/* Glass Card Form */}
+                <div className="glass-card relative w-full max-w-md overflow-hidden rounded-[24px] p-6 sm:p-8 backdrop-blur-[20px] transition-all">
                     {/* Header inside Card */}
                     <div className="mb-5 text-center sm:mb-6">
                         {/* Mobile Brand Header */}
                         <div className="mb-3 flex flex-col items-center lg:hidden">
-                            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600/10 p-2 border border-blue-600/20 shadow-sm">
-                                <img
+                            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600/10 dark:bg-blue-600/20 p-2 border border-blue-600/20 shadow-sm">
+                                <Image
                                     src="/images/icons/Logo.png"
                                     alt="Lumina Logo"
+                                    width={32}
+                                    height={32}
                                     className="h-full w-full object-contain"
                                 />
                             </div>
-                            <span className="mt-1.5 text-lg font-bold text-[#1a3a52]">Lumina</span>
-                            <span className="text-[10px] font-medium tracking-wide text-blue-600">
+                            <span className="mt-1.5 text-lg font-bold text-[#0f2436] dark:text-[#f0f6fc]">Lumina</span>
+                            <span className="text-[10px] font-medium tracking-wide text-[#3b82f6] dark:text-[#60a5fa]">
                                 IF-4MD-08 • PBL 2026
                             </span>
                         </div>
 
-                        <h2 className="text-xl font-bold tracking-tight text-[#1a3a52] sm:text-2xl">
+                        <h2 className="text-xl font-bold tracking-tight text-[#0f2436] dark:text-[#f0f6fc] sm:text-2xl">
                             Selamat Datang
                         </h2>
-                        <p className="mt-1 text-xs text-[#4a6b82] sm:text-sm">
+                        <p className="mt-1 text-xs text-[#334e68] dark:text-[#94a3b8] sm:text-sm">
                             Silakan masuk ke akun Anda untuk melanjutkan
                         </p>
                     </div>
@@ -310,7 +315,7 @@ export default function LoginPage() {
                     <form onSubmit={handleSubmit} className="space-y-3.5 sm:space-y-4" noValidate>
                         {/* Email Field */}
                         <div>
-                            <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#355872] mb-1 sm:text-xs">
+                            <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#334e68] dark:text-[#94a3b8] mb-1 sm:text-xs">
                                 Email atau Nama Pengguna
                             </label>
                             <div className="relative">
@@ -335,14 +340,14 @@ export default function LoginPage() {
                                     onChange={(e) => setEmail(e.target.value)}
                                     placeholder="nama@email.com atau username"
                                     autoComplete="email"
-                                    className="w-full rounded-xl border border-[#b8d5e8]/70 bg-white/70 py-2.5 pl-10 pr-3.5 text-sm text-[#1a3a52] placeholder:text-[#8ba7bc] transition-all focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/15"
+                                    className="w-full rounded-xl border border-white/40 dark:border-slate-700 bg-white/70 dark:bg-slate-800/80 py-2.5 pl-10 pr-3.5 text-sm text-[#0f2436] dark:text-[#f0f6fc] placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-4 focus:ring-blue-500/15"
                                 />
                             </div>
                         </div>
 
                         {/* Password Field with "Tampilkan Sandi" Toggle */}
                         <div>
-                            <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#355872] mb-1 sm:text-xs">
+                            <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#334e68] dark:text-[#94a3b8] mb-1 sm:text-xs">
                                 Kata Sandi
                             </label>
                             <div className="relative">
@@ -367,7 +372,7 @@ export default function LoginPage() {
                                     onChange={(e) => setPassword(e.target.value)}
                                     placeholder="Masukkan kata sandi"
                                     autoComplete="current-password"
-                                    className="w-full rounded-xl border border-[#b8d5e8]/70 bg-white/70 py-2.5 pl-10 pr-11 text-sm text-[#1a3a52] placeholder:text-[#8ba7bc] transition-all focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/15"
+                                    className="w-full rounded-xl border border-white/40 dark:border-slate-700 bg-white/70 dark:bg-slate-800/80 py-2.5 pl-10 pr-11 text-sm text-[#0f2436] dark:text-[#f0f6fc] placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-4 focus:ring-blue-500/15"
                                 />
                                 <button
                                     type="button"

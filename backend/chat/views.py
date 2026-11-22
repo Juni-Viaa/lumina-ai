@@ -1,6 +1,6 @@
 import logging
 
-from django.db.models import Q
+from django.db.models import Q, Prefetch
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -85,7 +85,10 @@ class AskView(APIView):
         
         if conversation_id:
             try:
-                conversation = Conversation.objects.get(id=conversation_id, user=request.user)
+                if request.user.role == "admin":
+                    conversation = Conversation.objects.get(id=conversation_id)
+                else:
+                    conversation = Conversation.objects.get(id=conversation_id, user=request.user)
             except Conversation.DoesNotExist:
                 return Response(
                     {"detail": "Percakapan tidak ditemukan atau Anda tidak memiliki akses."},
@@ -231,7 +234,18 @@ class ConversationViewSet(viewsets.ModelViewSet):
         """Mengambil semua message dalam conversation tertentu."""
         conversation = self.get_object()
 
-        queries = Query.objects.filter(conversation=conversation).select_related("user").order_by("created_at")
+        # ponytail: single prefetch covers answers without N+1 queries. Upgrade to cursor pagination if messages exceed 500 turns.
+        queries = (
+            Query.objects.filter(conversation=conversation)
+            .select_related("user")
+            .prefetch_related(
+                Prefetch(
+                    "answers",
+                    queryset=Answer.objects.filter(deleted_at__isnull=True),
+                )
+            )
+            .order_by("created_at")
+        )
 
         messages = []
         for query in queries:
@@ -242,12 +256,13 @@ class ConversationViewSet(viewsets.ModelViewSet):
                 "created_at": query.created_at.isoformat(),
             })
 
-            answers = query.answers.filter(deleted_at__isnull=True)
-            for answer in answers:
+            for answer in query.answers.all():
                 messages.append({
                     "id": answer.id,
                     "role": "assistant",
                     "content": answer.answer_text,
+                    "sources": answer.sources or [],
+                    "response_time_ms": query.response_time_ms,
                     "created_at": answer.created_at.isoformat(),
                 })
 

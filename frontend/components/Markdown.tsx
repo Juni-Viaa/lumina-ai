@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, type ReactNode } from "react";
+import { Fragment, memo, type ReactNode } from "react";
 
 /**
  * Renderer Markdown ringan (tanpa dependensi eksternal).
@@ -8,17 +8,18 @@ import { Fragment, type ReactNode } from "react";
  * list berurutan/tidak, blockquote, horizontal rule, dan tabel dasar.
  */
 
-const INLINE_PATTERN =
-    /(`[^`\n]+`)|(\*\*[^*\n]+\*\*)|(\*[^*\n]+\*)|(\[([^\]]+)\]\(([^)\s]+)\))/g;
+// ponytail: regex-based inline parser with per-call state to allow nested bold/italic recursion. Upgrade to full AST parser (e.g. unified/remark) if GFM extensions or arbitrary nesting depth are needed.
+const INLINE_SOURCE =
+    /(`[^`\n]+`)|(\*\*[^*\n]+\*\*)|(\*[^*\n]+\*)|(\[([^\]]+)\]\(([^)\s]+)\))/.source;
 
 function renderInline(text: string, keyPrefix: string): ReactNode[] {
     const nodes: ReactNode[] = [];
     let lastIndex = 0;
     let match: RegExpExecArray | null;
     let idx = 0;
-    INLINE_PATTERN.lastIndex = 0;
+    const pattern = new RegExp(INLINE_SOURCE, "g");
 
-    while ((match = INLINE_PATTERN.exec(text)) !== null) {
+    while ((match = pattern.exec(text)) !== null) {
         if (match.index > lastIndex) {
             nodes.push(
                 <Fragment key={`${keyPrefix}-t${idx++}`}>
@@ -288,11 +289,13 @@ function renderBlocks(lines: string[], keyPrefix: string): ReactNode[] {
     return nodes;
 }
 
-export default function Markdown({ content }: MarkdownProps) {
+const Markdown = memo(function Markdown({ content }: MarkdownProps) {
     if (!content) return null;
     const lines = content.split(/\r?\n/);
     return <div className="text-sm">{renderBlocks(lines, "md")}</div>;
-}
+});
+
+export default Markdown;
 
 interface MarkdownProps {
     content: string;

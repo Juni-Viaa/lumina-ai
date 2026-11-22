@@ -1,26 +1,31 @@
 "use client";
 
-import { Fragment, useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-
 import { api } from "@/lib/api";
 import { getUser } from "@/lib/auth";
+import { GlassButton } from "@/components/ui/GlassButton";
 import DocumentStats from "./DocumentStats";
 import UploadModal from "./UploadModal";
+import DocumentDetailDrawer, {
+    type DocumentItem,
+} from "./DocumentDetailDrawer";
 
-interface DocumentItem {
-    id: number;
-    document_name: string;
-    file_type?: string;
-    size_human?: string | null;
-    size: number;
-    status: string;
-    created_at: string;
-    chunk_count?: number;
+interface PaginatedResponse<T> {
+    count: number;
+    next: string | null;
+    previous: string | null;
+    results: T[];
 }
 
-type OpenDetail = { documentId: number; type: "chunks" | "logs" | "visual" } | null;
+interface SummaryData {
+    total: number;
+    indexed: number;
+    processing: number;
+    failed: number;
+}
 
+// ponytail: in-component document state with 10-item paging meets PBL dashboard scope; upgrade to server-side query caching (e.g. SWR/TanStack Query) if document volume grows to thousands.
 export default function ManageSection() {
     const router = useRouter();
     const user = getUser();
@@ -28,39 +33,56 @@ export default function ManageSection() {
 
     const [docs, setDocs] = useState<DocumentItem[]>([]);
     const [loadingDocs, setLoadingDocs] = useState(true);
-    const [stats, setStats] = useState({ total: 0, indexed: 0, processing: 0, failed: 0 });
+    const [stats, setStats] = useState<SummaryData>({
+        total: 0,
+        indexed: 0,
+        processing: 0,
+        failed: 0,
+    });
     const [search, setSearch] = useState("");
-    const [openDetail, setOpenDetail] = useState<OpenDetail>(null);
-    const [chunks, setChunks] = useState<DocumentItem[]>([]);
-    const [logs, setLogs] = useState<Array<{id: number, step: string, message: string, created_at: string}>>([]);
-    const [visualGroups, setVisualGroups] = useState<Array<{
-        imageRef: string;
-        ocr: { chunk_text: string; metadata?: { ocr_confidence?: number } }[];
-        vision: { chunk_text: string }[];
-    }>>([]);
-    const [loadingDetail, setLoadingDetail] = useState(false);
-    const [isUploadOpen, setIsUploadOpen] = useState(false);
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
-    const [isUploading, setIsUploading] = useState(false);
-    const [uploadError, setUploadError] = useState<string | null>(null);
-    const [openMenuId, setOpenMenuId] = useState<number | null>(null);
-    const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
     const [statusFilter, setStatusFilter] = useState<string>("all");
     const [typeFilter, setTypeFilter] = useState<string>("all");
     const [dateSort, setDateSort] = useState<string>("newest");
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
 
-    const menuRef = useRef<HTMLDivElement>(null);
-    const docRefs = useRef<Map<number, HTMLDivElement | null>>(new Map());
+    // Detail Drawer state
+    const [drawerDoc, setDrawerDoc] = useState<DocumentItem | null>(null);
+    const [drawerTab, setDrawerTab] = useState<"chunks" | "logs" | "visual">("chunks");
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
+    // Upload Modal state
+    const [isUploadOpen, setIsUploadOpen] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const [uploadError, setUploadError] = useState<string | null>(null);
+
+    // Multi-selection state
+    const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
+    // Action dropdown menu state
+    const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    // Redirect non-admin
     useEffect(() => {
         if (!isAdmin) router.replace("/");
     }, [isAdmin, router]);
 
-    const [isUploadOpenState, setIsUploadOpenState] = useState(false);
+    // Close action menu when clicking outside
+    useEffect(() => {
+        function handleClickOutside(e: MouseEvent) {
+            if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+                setOpenMenuId(null);
+            }
+        }
+        if (openMenuId !== null) {
+            document.addEventListener("mousedown", handleClickOutside);
+        }
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [openMenuId]);
 
-    const refreshDocs = async (page: number = 1) => {
+    // Data fetching
+    const refreshDocs = useCallback(async (page: number = 1) => {
         setLoadingDocs(true);
         try {
             const params = new URLSearchParams({
@@ -69,305 +91,157 @@ export default function ManageSection() {
             });
             if (statusFilter !== "all") params.append("status", statusFilter);
             if (typeFilter !== "all") params.append("file_type", typeFilter);
-            if (search) params.append("document_name", search);
+            if (search.trim()) params.append("document_name", search.trim());
 
-            const response = await api.get<{
-                count: number;
-                next: string | null;
-                previous: string | null;
-                results: DocumentItem[];
-            }>(`/documents/?${params.toString()}`);
-
-            setDocs(response.results);
-            setTotalPages(Math.ceil(response.count / 10));
+            const res = await api.get<PaginatedResponse<DocumentItem>>(
+                `/documents/?${params.toString()}`,
+            );
+            setDocs(res.results || []);
+            setTotalPages(Math.max(1, Math.ceil((res.count || 0) / 10)));
             setCurrentPage(page);
         } catch {
             setDocs([]);
         } finally {
             setLoadingDocs(false);
         }
-    };
+    }, [statusFilter, typeFilter, search]);
 
-    const fetchSummary = async () => {
+    const fetchSummary = useCallback(async () => {
         try {
-            const data = await api.get<{
-                total: number;
-                indexed: number;
-                processing: number;
-                failed: number;
-            }>("/documents/summary/");
+            const data = await api.get<SummaryData>("/documents/summary/");
             setStats(data);
         } catch {
             setStats({ total: 0, indexed: 0, processing: 0, failed: 0 });
         }
-    };
+    }, []);
 
+    // Initial load & filter change
     useEffect(() => {
-        Promise.all([refreshDocs(1), fetchSummary()]);
-    }, [statusFilter, typeFilter, dateSort]);
+        const timer = setTimeout(() => {
+            void refreshDocs(1);
+            void fetchSummary();
+        }, 150);
+        return () => clearTimeout(timer);
+    }, [refreshDocs, fetchSummary]);
 
+    // Background polling while processing
     useEffect(() => {
-        const hasProcessing = docs.some(
-            (doc) =>
-                doc.status.toLowerCase() === "processing" ||
-                doc.status.toLowerCase() === "pending",
-        );
-
+        const hasProcessing = docs.some((doc) => {
+            const st = doc.status.toLowerCase();
+            return st === "processing" || st === "pending";
+        });
         if (!hasProcessing) return;
 
         const intervalId = setInterval(() => {
-            refreshDocs(currentPage);
+            void refreshDocs(currentPage);
+            void fetchSummary();
         }, 3000);
 
         return () => clearInterval(intervalId);
-    }, [docs, currentPage]);
+    }, [docs, currentPage, refreshDocs, fetchSummary]);
 
-    useEffect(() => {
-        function handleClickOutside(event: MouseEvent) {
-            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-                setOpenMenuId(null);
-            }
-        }
-
-        if (openMenuId !== null) {
-            document.addEventListener("mousedown", handleClickOutside);
-        } else {
-            document.removeEventListener("mousedown", handleClickOutside);
-        }
-
-        return () => {
-            document.removeEventListener("mousedown", handleClickOutside);
-        };
-    }, [openMenuId, menuRef]);
-
-    const filteredDocs = useMemo(() => {
-        let result = [...docs];
-
-        if (search) {
-            result = result.filter((doc) =>
-                doc.document_name
-                    .toLocaleLowerCase("id-ID")
-                    .includes(search.toLocaleLowerCase("id-ID")),
-            );
-        }
-
-        if (statusFilter !== "all") {
-            const statusMap: Record<string, string[]> = {
-                indexed: ["indexed", "completed", "success"],
-                processing: ["processing", "pending"],
-                failed: ["failed", "error"],
-            };
-
-            const filterStatuses = statusMap[statusFilter.toLowerCase()] || [];
-
-            result = result.filter((doc) => {
-                const docStatus = doc.status.toLowerCase();
-                return filterStatuses.some((s) => docStatus === s);
-            });
-        }
-
-        if (typeFilter !== "all") {
-            const normalizedType = typeFilter.toLowerCase();
-            result = result.filter((doc) => {
-                const docType = (doc.file_type || "").toLowerCase();
-                return docType === normalizedType;
-            });
-        }
-
-        return result;
-    }, [docs, search, statusFilter, typeFilter]);
-
+    // Sorted client-side docs for date order
     const sortedDocs = useMemo(() => {
-        const result = [...filteredDocs];
-
+        const result = [...docs];
         result.sort((a, b) => {
-            if (dateSort === "newest") {
-                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-            } else {
-                return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-            }
+            const timeA = new Date(a.created_at).getTime();
+            const timeB = new Date(b.created_at).getTime();
+            return dateSort === "newest" ? timeB - timeA : timeA - timeB;
         });
-
         return result;
-    }, [filteredDocs, dateSort]);
+    }, [docs, dateSort]);
 
-    const allSelected = sortedDocs.length > 0 && sortedDocs.every(doc => selectedIds.has(doc.id));
-    const someSelected = sortedDocs.some(doc => selectedIds.has(doc.id));
+    // Multi-selection helpers
+    const allSelected =
+        sortedDocs.length > 0 && sortedDocs.every((doc) => selectedIds.has(doc.id));
+    const someSelected = selectedIds.size > 0;
 
-    function toggleSelectAll() {
+    const toggleSelectAll = () => {
         if (allSelected) {
             setSelectedIds(new Set());
         } else {
-            setSelectedIds(new Set(sortedDocs.map(doc => doc.id)));
+            setSelectedIds(new Set(sortedDocs.map((d) => d.id)));
         }
-    }
+    };
 
-    function toggleSelect(id: number) {
-        const newSet = new Set(selectedIds);
-        if (newSet.has(id)) {
-            newSet.delete(id);
-        } else {
-            newSet.add(id);
-        }
-        setSelectedIds(newSet);
-    }
+    const toggleSelectOne = (id: number) => {
+        const next = new Set(selectedIds);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        setSelectedIds(next);
+    };
 
-    async function handleBulkDelete() {
-        if (selectedIds.size === 0) return;
+    // Actions
+    const handleOpenDetail = (doc: DocumentItem, tab: "chunks" | "logs" | "visual") => {
+        setDrawerDoc(doc);
+        setDrawerTab(tab);
+        setIsDrawerOpen(true);
+        setOpenMenuId(null);
+    };
 
-        if (!window.confirm(`Hapus ${selectedIds.size} dokumen yang dipilih?`)) {
+    const handleDelete = async (doc: DocumentItem) => {
+        if (!window.confirm(`Hapus dokumen "${doc.document_name}" beserta seluruh chunk-nya?`)) {
             return;
         }
-
-        const results = await Promise.allSettled(
-            Array.from(selectedIds).map(id => api.delete(`/documents/${id}/`))
-        );
-
-        const failed = results.filter(r => r.status === "rejected").length;
-        if (failed > 0) {
-            setUploadError(`${failed} dokumen gagal dihapus.`);
-        }
-
-        setSelectedIds(new Set());
-        await refreshDocs(currentPage);
-    }
-
-    async function handleBulkReIngest() {
-        if (selectedIds.size === 0) return;
-
-        const results = await Promise.allSettled(
-            Array.from(selectedIds).map(id => api.post(`/ingest/${id}/re-ingest/`, {}))
-        );
-
-        const failed = results.filter(r => r.status === "rejected").length;
-        if (failed > 0) {
-            setUploadError(`${failed} dokumen gagal di-re-ingest.`);
-        }
-
-        setSelectedIds(new Set());
-        await refreshDocs(currentPage);
-    }
-
-    async function toggleDetail(doc: DocumentItem, type: "chunks" | "logs" | "visual") {
-        if (openDetail?.documentId === doc.id && openDetail.type === type) {
-            setOpenDetail(null);
-            return;
-        }
-
-        if (type === "chunks" || type === "logs") {
-            setDocs((prevDocs) => {
-                const targetDoc = prevDocs.find((d) => d.id === doc.id);
-                if (!targetDoc) return prevDocs;
-                const otherDocs = prevDocs.filter((d) => d.id !== doc.id);
-                return [targetDoc, ...otherDocs];
-            });
-        }
-
-        setOpenDetail({ documentId: doc.id, type });
-        setLoadingDetail(true);
-
-        try {
-            if (type === "chunks") {
-                const data = await api.get<{ results: any[] }>(`/documents/${doc.id}/chunks/`);
-
-                setChunks(Array.isArray(data?.results) ? data.results : []);
-            } else if (type === "logs") {
-                const data = await api.get<{ results: any[] }>(
-                    `/documents/${doc.id}/ingest_logs/`,
-                );
-
-                setLogs(Array.isArray(data?.results) ? data.results : []);
-            } else if (type === "visual") {
-                const data = await api.get<
-                    | Array<{
-                          imageRef: string;
-                          ocr: { chunk_text: string; metadata?: { ocr_confidence?: number } }[];
-                          vision: { chunk_text: string }[];
-                      }>
-                    | {
-                          results?: Array<{
-                              imageRef: string;
-                              ocr: { chunk_text: string; metadata?: { ocr_confidence?: number } }[];
-                              vision: { chunk_text: string }[];
-                          }>;
-                      }
-                >(`/documents/${doc.id}/visual/`);
-
-                const rawList = Array.isArray(data)
-                    ? data
-                    : Array.isArray(data?.results)
-                    ? data.results
-                    : [];
-                setVisualGroups(rawList);
-            }
-        } catch (error) {
-            console.error(`Failed to fetch ${type} for document ${doc.id}:`, error);
-            if (type === "chunks") {
-                setChunks([]);
-            } else if (type === "logs") {
-                setLogs([]);
-            } else if (type === "visual") {
-                setVisualGroups([]);
-            }
-        } finally {
-            setLoadingDetail(false);
-
-            setTimeout(() => {
-                const el = docRefs.current.get(doc.id);
-                if (el) {
-                    el.scrollIntoView({ behavior: "smooth", block: "center" });
-                }
-            }, 50);
-        }
-    }
-
-    async function handleDelete(doc: DocumentItem) {
-        if (
-            !window.confirm(
-                `Hapus dokumen "${doc.document_name}" beserta seluruh chunk-nya?`,
-            )
-        ) {
-            return;
-        }
-
         try {
             await api.delete(`/documents/${doc.id}/`);
-
-            if (openDetail?.documentId === doc.id) {
-                setOpenDetail(null);
-            }
-
-            if (openMenuId === doc.id) {
-                setOpenMenuId(null);
-            }
-
+            if (drawerDoc?.id === doc.id) setIsDrawerOpen(false);
+            setOpenMenuId(null);
             await Promise.all([refreshDocs(currentPage), fetchSummary()]);
         } catch {
-            return;
+            setUploadError("Gagal menghapus dokumen.");
         }
-    }
+    };
 
-    async function handleReIngest(doc: DocumentItem) {
+    const handleReIngest = async (doc: DocumentItem) => {
         try {
             await api.post(`/ingest/${doc.id}/re-ingest/`, {});
-
             setOpenMenuId(null);
             await Promise.all([refreshDocs(currentPage), fetchSummary()]);
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : "Gagal memulai re-ingest dokumen.";
             setUploadError(msg);
         }
-    }
+    };
 
-    async function submitUpload(file: File) {
+    const handleBulkDelete = async () => {
+        if (selectedIds.size === 0) return;
+        if (!window.confirm(`Hapus ${selectedIds.size} dokumen yang dipilih?`)) return;
+
+        const results = await Promise.allSettled(
+            Array.from(selectedIds).map((id) => api.delete(`/documents/${id}/`)),
+        );
+        const failed = results.filter((r) => r.status === "rejected").length;
+        if (failed > 0) {
+            setUploadError(`${failed} dokumen gagal dihapus.`);
+        }
+        setSelectedIds(new Set());
+        await Promise.all([refreshDocs(currentPage), fetchSummary()]);
+    };
+
+    const handleBulkReIngest = async () => {
+        if (selectedIds.size === 0) return;
+        const results = await Promise.allSettled(
+            Array.from(selectedIds).map((id) =>
+                api.post(`/ingest/${id}/re-ingest/`, {}),
+            ),
+        );
+        const failed = results.filter((r) => r.status === "rejected").length;
+        if (failed > 0) {
+            setUploadError(`${failed} dokumen gagal di-re-ingest.`);
+        }
+        setSelectedIds(new Set());
+        await Promise.all([refreshDocs(currentPage), fetchSummary()]);
+    };
+
+    const submitUpload = async (file: File) => {
         setIsUploading(true);
         setUploadError(null);
-
         try {
             const formData = new FormData();
             formData.append("document", file);
             await api.uploadFile("/ingest/upload/", formData);
-            setIsUploadOpenState(false);
+            setIsUploadOpen(false);
             await Promise.all([refreshDocs(1), fetchSummary()]);
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : "Gagal mengunggah dokumen.";
@@ -375,432 +249,393 @@ export default function ManageSection() {
         } finally {
             setIsUploading(false);
         }
-    }
+    };
 
     if (!isAdmin) {
         return (
-            <div className="flex h-full items-center justify-center p-6 text-center text-sm text-[#1a3a52]/70">
+            <div className="flex h-full items-center justify-center p-6 text-center text-sm text-[#0f2436]/70 dark:text-[#f0f6fc]/70">
                 Anda tidak memiliki izin untuk mengakses halaman upload.
             </div>
         );
     }
 
     return (
-        <div className="flex h-full flex-col overflow-hidden">
-            <div className="flex min-h-0 flex-1 flex-col gap-4 p-5">
-                <DocumentStats stats={stats} />
-
-                <div className="shrink-0 flex flex-wrap items-center gap-3">
-                    <div className="flex-1 min-w-[200px] flex items-center gap-3 rounded-2xl px-4 py-3 [background:rgba(255,255,255,0.1)] [border:1px_solid_rgba(255,255,255,0.18)] [box-shadow:0_2px_4px_rgba(0,0,0,0.15)] [backdrop-filter:blur(20px)] [-webkit-backdrop-filter:blur(20px)]">
-                        <svg className="h-5 w-5 shrink-0 text-[#1a3a52]/45" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-4.35-4.35m2.35-5.65a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z" />
-                        </svg>
-                        <input
-                            type="search"
-                            value={search}
-                            onChange={(event) => setSearch(event.target.value)}
-                            placeholder="Cari dokumen..."
-                            className="w-full bg-transparent text-sm text-[#1a3a52] outline-none placeholder:text-[#1a3a52]/40"
-                        />
+        <div className="flex h-full flex-col overflow-hidden relative">
+            <div className="flex min-h-0 flex-1 flex-col gap-4 p-4 md:p-6 overflow-y-auto">
+                {/* Header Title */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shrink-0">
+                    <div>
+                        <h1 className="text-xl md:text-2xl font-bold tracking-tight text-[#0f2436] dark:text-[#f0f6fc]">
+                            Manajemen Dokumen
+                        </h1>
+                        <p className="text-xs md:text-sm text-[#0f2436]/60 dark:text-[#f0f6fc]/60 mt-0.5">
+                            Kelola koleksi pengetahuan, pantau pipeline OCR, dan periksa status chunking
+                        </p>
                     </div>
 
-                    <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                        className="rounded-xl px-3 py-2 text-sm text-[#1a3a52] [background:rgba(255,255,255,0.1)] [border:1px_solid_rgba(255,255,255,0.18)] outline-none"
-                    >
-                        <option value="all">Semua Status</option>
-                        <option value="indexed">Indexed</option>
-                        <option value="processing">Processing</option>
-                        <option value="failed">Failed</option>
-                    </select>
-
-                    <select
-                        value={typeFilter}
-                        onChange={(e) => setTypeFilter(e.target.value)}
-                        className="rounded-xl px-3 py-2 text-sm text-[#1a3a52] [background:rgba(255,255,255,0.1)] [border:1px_solid_rgba(255,255,255,0.18)] outline-none"
-                    >
-                        <option value="all">Semua Tipe</option>
-                        <option value="pdf">PDF</option>
-                        <option value="docx">DOCX</option>
-                        <option value="txt">TXT</option>
-                    </select>
-
-                    <select
-                        value={dateSort}
-                        onChange={(e) => setDateSort(e.target.value)}
-                        className="rounded-xl px-3 py-2 text-sm text-[#1a3a52] [background:rgba(255,255,255,0.1)] [border:1px_solid_rgba(255,255,255,0.18)] outline-none"
-                    >
-                        <option value="newest">Terbaru</option>
-                        <option value="oldest">Terlama</option>
-                    </select>
-
-                    <button
-                        type="button"
-                        onClick={() => {
-                            setIsUploadOpenState(true);
-                            setSelectedFile(null);
-                            setUploadError(null);
-                        }}
-                        className="rounded-xl bg-[#1a6fa8] px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-[#155a85]"
-                    >
-                        + Upload Dokumen
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={() => refreshDocs(1)}
-                        className="rounded-xl px-3 py-2 text-sm text-[#1a3a52]/70 transition-colors hover:bg-white/15"
-                    >
-                        Muat ulang
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <GlassButton
+                            variant="primary"
+                            size="md"
+                            onClick={() => {
+                                setUploadError(null);
+                                setIsUploadOpen(true);
+                            }}
+                            className="w-full sm:w-auto"
+                        >
+                            <svg className="h-4 w-4 mr-1.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                            </svg>
+                            Upload Dokumen
+                        </GlassButton>
+                    </div>
                 </div>
 
-                {someSelected && (
-                    <div className="shrink-0 flex items-center gap-3 rounded-xl bg-[#1a6fa8]/10 px-4 py-3">
-                        <span className="text-sm text-[#1a3a52]">
-                            {selectedIds.size} dipilih
-                        </span>
+                {/* KPI Metrics */}
+                <DocumentStats
+                    stats={stats}
+                    activeFilter={statusFilter}
+                    onSelectFilter={(st) => setStatusFilter(st)}
+                />
+
+                {/* Error Banner */}
+                {uploadError && (
+                    <div className="flex items-center justify-between rounded-2xl border border-rose-500/20 bg-rose-500/10 p-3.5 text-xs text-rose-700 dark:text-rose-300 shrink-0">
+                        <div className="flex items-center gap-2">
+                            <svg className="h-4 w-4 shrink-0 text-rose-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+                            </svg>
+                            <span>{uploadError}</span>
+                        </div>
                         <button
                             type="button"
-                            onClick={() => void handleBulkReIngest()}
-                            className="rounded-lg bg-[#1a6fa8] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#155a85]"
+                            onClick={() => setUploadError(null)}
+                            className="text-xs underline hover:opacity-80"
                         >
-                            <span className="flex items-center gap-1.5">
-                                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-                                </svg>
-                                Re-ingest
-                            </span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => void handleBulkDelete()}
-                            className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-700"
-                        >
-                            <span className="flex items-center gap-1.5">
-                                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                                </svg>
-                                Hapus
-                            </span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setSelectedIds(new Set())}
-                            className="rounded-lg px-3 py-1.5 text-xs text-[#1a3a52]/70 transition-colors hover:bg-white/15"
-                        >
-                            Batal
+                            Tutup
                         </button>
                     </div>
                 )}
 
-                <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl [background:rgba(255,255,255,0.1)] [border:1px_solid_rgba(255,255,255,0.18)] [box-shadow:0_2px_4px_rgba(0,0,0,0.15)] [backdrop-filter:blur(20px)] [-webkit-backdrop-filter:blur(20px)]">
-                    <div className="overflow-auto flex-1">
-                        <table className="w-full table-fixed text-sm">
-                            <thead className="sticky top-0 bg-white/95 backdrop-blur-sm z-10">
-                                <tr className="border-b border-white/10">
-                                    <th className="w-[4%] p-4">
+                {/* Filter & Search Bar */}
+                <div className="shrink-0 flex flex-wrap items-center gap-3">
+                    {/* Search Input */}
+                    <div className="flex-1 min-w-[220px] relative">
+                        <div className="flex items-center gap-2.5 rounded-2xl px-3.5 py-2.5 glass-input">
+                            <svg className="h-4 w-4 shrink-0 text-[#0f2436]/40 dark:text-[#f0f6fc]/40" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-4.35-4.35m2.35-5.65a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z" />
+                            </svg>
+                            <input
+                                type="text"
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                placeholder="Cari berdasarkan nama dokumen..."
+                                className="w-full bg-transparent text-xs text-[#0f2436] dark:text-[#f0f6fc] outline-none placeholder:text-[#0f2436]/40 dark:placeholder:text-[#f0f6fc]/40"
+                            />
+                            {search && (
+                                <button
+                                    type="button"
+                                    onClick={() => setSearch("")}
+                                    className="text-xs text-[#0f2436]/40 hover:text-[#0f2436] dark:text-[#f0f6fc]/40 dark:hover:text-[#f0f6fc]"
+                                >
+                                    ✕
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Filter Status */}
+                    <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className="rounded-2xl px-3.5 py-2.5 text-xs text-[#0f2436] dark:text-[#f0f6fc] glass-input outline-none cursor-pointer"
+                        aria-label="Filter status dokumen"
+                    >
+                        <option value="all" className="dark:bg-slate-900">Semua Status</option>
+                        <option value="indexed" className="dark:bg-slate-900">Indexed</option>
+                        <option value="processing" className="dark:bg-slate-900">Processing</option>
+                        <option value="failed" className="dark:bg-slate-900">Failed</option>
+                    </select>
+
+                    {/* Filter Type */}
+                    <select
+                        value={typeFilter}
+                        onChange={(e) => setTypeFilter(e.target.value)}
+                        className="rounded-2xl px-3.5 py-2.5 text-xs text-[#0f2436] dark:text-[#f0f6fc] glass-input outline-none cursor-pointer"
+                        aria-label="Filter tipe file"
+                    >
+                        <option value="all" className="dark:bg-slate-900">Semua Tipe</option>
+                        <option value="pdf" className="dark:bg-slate-900">PDF</option>
+                        <option value="docx" className="dark:bg-slate-900">DOCX</option>
+                        <option value="txt" className="dark:bg-slate-900">TXT</option>
+                    </select>
+
+                    {/* Sort Order */}
+                    <select
+                        value={dateSort}
+                        onChange={(e) => setDateSort(e.target.value)}
+                        className="rounded-2xl px-3.5 py-2.5 text-xs text-[#0f2436] dark:text-[#f0f6fc] glass-input outline-none cursor-pointer"
+                        aria-label="Urutan tanggal"
+                    >
+                        <option value="newest" className="dark:bg-slate-900">Terbaru</option>
+                        <option value="oldest" className="dark:bg-slate-900">Terlama</option>
+                    </select>
+
+                    {/* Refresh Button */}
+                    <GlassButton
+                        variant="glass"
+                        size="md"
+                        onClick={() => {
+                            void refreshDocs(currentPage);
+                            void fetchSummary();
+                        }}
+                        disabled={loadingDocs}
+                        className="h-[41px]"
+                    >
+                        <svg
+                            className={`h-4 w-4 mr-1.5 ${loadingDocs ? "animate-spin" : ""}`}
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                            viewBox="0 0 24 24"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                        </svg>
+                        Segarkan
+                    </GlassButton>
+                </div>
+
+                {/* Main Content Area */}
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl glass-panel border shadow-lg">
+                    {/* Desktop Table View */}
+                    <div className="hidden md:block overflow-x-auto overflow-y-auto flex-1">
+                        <table className="w-full table-fixed text-left text-xs border-collapse">
+                            <thead className="sticky top-0 z-10 bg-white/70 dark:bg-slate-900/80 backdrop-blur-md border-b border-white/10 dark:border-white/5">
+                                <tr className="text-[#0f2436]/70 dark:text-[#f0f6fc]/70 uppercase tracking-wider text-[11px] font-semibold">
+                                    <th className="w-[5%] p-4 text-center">
                                         <input
                                             type="checkbox"
                                             checked={allSelected}
                                             onChange={toggleSelectAll}
-                                            className="h-4 w-4 rounded border-gray-300"
+                                            className="h-4 w-4 rounded accent-primary cursor-pointer"
+                                            aria-label="Pilih semua dokumen"
                                         />
                                     </th>
-                                    <th className="w-[36%] text-left p-4 font-medium text-[#1a3a52]">Nama dokumen</th>
-                                    <th className="w-[10%] text-left p-4 font-medium text-[#1a3a52]">Tipe</th>
-                                    <th className="w-[10%] text-left p-4 font-medium text-[#1a3a52]">Ukuran</th>
-                                    <th className="w-[14%] text-left p-4 font-medium text-[#1a3a52]">Tanggal</th>
-                                    <th className="w-[8%] text-center p-4 font-medium text-[#1a3a52]">Chunk</th>
-                                    <th className="w-[10%] text-left p-4 font-medium text-[#1a3a52]">Status</th>
-                                    <th className="w-[8%] text-center p-4 font-medium text-[#1a3a52]">Aksi</th>
+                                    <th className="w-[35%] p-4">Nama Dokumen</th>
+                                    <th className="w-[10%] p-4">Tipe</th>
+                                    <th className="w-[10%] p-4">Ukuran</th>
+                                    <th className="w-[13%] p-4">Tanggal Unggah</th>
+                                    <th className="w-[8%] p-4 text-center">Chunk</th>
+                                    <th className="w-[11%] p-4">Status</th>
+                                    <th className="w-[8%] p-4 text-center">Aksi</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody className="divide-y divide-white/10 dark:divide-white/5">
                                 {loadingDocs ? (
                                     <tr>
-                                        <td colSpan={8} className="p-6 text-center text-sm text-[#1a3a52]/50">
-                                            Memuat dokumen...
+                                        <td colSpan={8} className="p-12 text-center text-sm text-[#0f2436]/50 dark:text-[#f0f6fc]/50">
+                                            <div className="flex flex-col items-center gap-2">
+                                                <svg className="h-6 w-6 animate-spin text-primary" fill="none" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z" />
+                                                </svg>
+                                                <span>Memuat daftar dokumen...</span>
+                                            </div>
                                         </td>
                                     </tr>
                                 ) : sortedDocs.length === 0 ? (
                                     <tr>
-                                        <td colSpan={8} className="p-8 text-center text-sm text-[#1a3a52]/50">
-                                            Tidak ada dokumen yang ditemukan.
+                                        <td colSpan={8} className="p-14 text-center text-sm text-[#0f2436]/50 dark:text-[#f0f6fc]/50">
+                                            <div className="flex flex-col items-center gap-2">
+                                                <svg className="h-8 w-8 text-[#0f2436]/30 dark:text-[#f0f6fc]/30" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                                                </svg>
+                                                <span>Tidak ada dokumen yang ditemukan.</span>
+                                            </div>
                                         </td>
                                     </tr>
                                 ) : (
                                     sortedDocs.map((doc) => {
-                                        const chunkCount = doc.chunk_count ?? 0;
-                                        const isExpanded = openDetail?.documentId === doc.id;
-                                        const isChunks = openDetail?.type === "chunks";
-                                        const isLogs = openDetail?.type === "logs";
-                                        const isVisual = openDetail?.type === "visual";
+                                        const isSelected = selectedIds.has(doc.id);
+                                        const normStatus = doc.status.toLowerCase();
+                                        const isIndexed = ["indexed", "completed", "success"].includes(normStatus);
+                                        const isProc = ["processing", "pending"].includes(normStatus);
+                                        const isFail = ["failed", "error"].includes(normStatus);
 
-                                        const detailRow = isExpanded ? (
-                                            <tr key={`detail-${doc.id}`} className="bg-white/5">
-                                                <td colSpan={8} className="p-0">
-                                                    <div className="overflow-hidden border-t border-white/10 bg-white/10">
-                                                        <div className="p-4">
-                                                            <h4 className="mb-3 text-sm font-semibold text-[#1a3a52]">
-                                                                {isChunks ? `Chunk (${chunks.length} item)` : isLogs ? `Ingest Log (${logs.length} item)` : `OCR & Vision (${visualGroups.length} gambar)`}
-                                                            </h4>
-                                                            {loadingDetail ? (
-                                                                <p className="text-sm text-[#1a3a52]/50">Memuat data...</p>
-                                                            ) : isChunks ? (
-                                                                chunks.length === 0 ? (
-                                                                    <p className="text-sm text-[#1a3a52]/50">Tidak ada chunk tersedia.</p>
-                                                                ) : (
-                                                                    <div className="max-h-64 overflow-y-auto space-y-3 pr-2">
-                                                                        {chunks.map((chunk: any, index) => (
-                                                                            <div key={chunk.id} className="rounded-lg bg-white/5 p-3">
-                                                                                <div className="mb-1 flex items-center justify-between">
-                                                                                    <span className="text-xs font-medium text-[#1a6fa8]">
-                                                                                        Chunk {index + 1}
-                                                                                    </span>
-                                                                                </div>
-                                                                                <p className="whitespace-pre-wrap text-xs leading-relaxed text-[#1a3a52]/80">
-                                                                                    {chunk.chunk_text}
-                                                                                </p>
-                                                                            </div>
-                                                                        ))}
-                                                                    </div>
-                                                                )
-                                                            ) : isLogs ? (
-                                                                logs.length === 0 ? (
-                                                                    <p className="text-sm text-[#1a3a52]/50">Tidak ada log tersedia.</p>
-                                                                ) : (
-                                                                    <div className="max-h-64 overflow-y-auto space-y-2 pr-2">
-                                                                        {logs.map((log: any) => (
-                                                                            <div key={log.id} className="rounded-lg bg-white/5 p-3">
-                                                                                <div className="mb-1 flex items-center justify-between">
-                                                                                    <span className="text-xs font-medium text-[#1a6fa8]">
-                                                                                        {log.step}
-                                                                                    </span>
-                                                                                    <span className="text-[10px] text-[#1a3a52]/40">
-                                                                                        {log.created_at}
-                                                                                    </span>
-                                                                                </div>
-                                                                                <p className="text-xs text-[#1a3a52]/70">
-                                                                                    {log.message}
-                                                                                </p>
-                                                                            </div>
-                                                                        ))}
-                                                                    </div>
-                                                                )
-                                                            ) : visualGroups.length === 0 ? (
-                                                                <p className="text-sm text-[#1a3a52]/50">
-                                                                    Dokumen ini tidak memiliki hasil OCR atau Gemini Vision.
-                                                                </p>
-                                                            ) : (
-                                                                <div className="space-y-3">
-                                                                    {visualGroups.map((group) => (
-                                                                        <div key={group.imageRef} className="rounded-2xl bg-white/20 p-3">
-                                                                            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                                                                                <p className="text-xs font-semibold text-[#1a3a52]">
-                                                                                    {group.imageRef}
-                                                                                </p>
-                                                                                <div className="flex gap-1.5 text-[10px]">
-                                                                                    <span className="rounded-full bg-amber-500/10 px-2 py-1 text-amber-700">
-                                                                                        {group.ocr.length} OCR
-                                                                                    </span>
-                                                                                    <span className="rounded-full bg-violet-500/10 px-2 py-1 text-violet-700">
-                                                                                        {group.vision.length} Vision
-                                                                                    </span>
-                                                                                </div>
-                                                                            </div>
+                                        return (
+                                            <tr
+                                                key={doc.id}
+                                                className={`transition-colors hover:bg-white/40 dark:hover:bg-slate-800/40 ${
+                                                    isSelected ? "bg-primary/5" : ""
+                                                }`}
+                                            >
+                                                {/* Checkbox */}
+                                                <td className="p-4 text-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isSelected}
+                                                        onChange={() => toggleSelectOne(doc.id)}
+                                                        className="h-4 w-4 rounded accent-primary cursor-pointer"
+                                                        aria-label={`Pilih ${doc.document_name}`}
+                                                    />
+                                                </td>
 
-                                                                            <div className="grid gap-3 lg:grid-cols-2">
-                                                                                <div className="rounded-xl border border-amber-500/15 bg-amber-50/35 p-3">
-                                                                                    <p className="mb-2 text-xs font-semibold text-amber-700">
-                                                                                        OCR
-                                                                                        {group.ocr[0]?.metadata?.ocr_confidence != null &&
-                                                            ` · keyakinan ${Math.round(group.ocr[0].metadata.ocr_confidence * 100)}%`}
-                                                                                    </p>
-                                                                                    <p className="whitespace-pre-wrap text-xs leading-relaxed text-[#1a3a52]/70">
-                                                                                        {group.ocr.map((chunk) => chunk.chunk_text).join("\n\n") || "Tidak ada hasil OCR."}
-                                                                                    </p>
-                                                                                </div>
-
-                                                                                <div className="rounded-xl border border-violet-500/15 bg-violet-50/35 p-3">
-                                                                                    <p className="mb-2 text-xs font-semibold text-violet-700">
-                                                                                        Gemini Vision
-                                                                                    </p>
-                                                                                    <p className="whitespace-pre-wrap text-xs leading-relaxed text-[#1a3a52]/70">
-                                                                                        {group.vision.map((chunk) => chunk.chunk_text).join("\n\n") || "Tidak ada hasil Vision."}
-                                                                                    </p>
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            )}
+                                                {/* Document Name */}
+                                                <td className="p-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                                                            <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                                                            </svg>
+                                                        </div>
+                                                        <div className="min-w-0 flex-1">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleOpenDetail(doc, "chunks")}
+                                                                className="truncate font-semibold text-[#0f2436] dark:text-[#f0f6fc] hover:text-primary transition-colors text-left block max-w-full cursor-pointer"
+                                                                title={doc.document_name}
+                                                            >
+                                                                {doc.document_name}
+                                                            </button>
                                                         </div>
                                                     </div>
                                                 </td>
-                                            </tr>
-                                        ) : null;
 
-                                        return (
-                                            <Fragment key={doc.id}>
-                                                <tr>
-                                                    <td className="p-4 text-center">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={selectedIds.has(doc.id)}
-                                                            onChange={() => toggleSelect(doc.id)}
-                                                            className="h-4 w-4 rounded border-gray-300"
-                                                        />
-                                                    </td>
-                                                    <td className="p-4">
-                                                        <p className="truncate text-sm font-medium text-[#1a3a52]">
-                                                            {doc.document_name}
-                                                        </p>
-                                                    </td>
-                                                    <td className="p-4">
-                                                        <div className="flex items-center gap-2">
-                                                            {doc.file_type?.toLowerCase() === "pdf" && (
-                                                                <svg className="h-4 w-4 text-red-500" fill="currentColor" viewBox="0 0 24 24">
-                                                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2l5 5h-5V4zm-2.5 9.5c0 .83-.67 1.5-1.5 1.5H8v2H6.5v-6H9c.83 0 1.5.67 1.5 1.5v1zm5 0c0 .83-.67 1.5-1.5 1.5h-1v2h-1.5v-6h2.5c.83 0 1.5.67 1.5 1.5v1zm4.5-1.5h-2v1h2v1.5h-2v1.5h-1.5v-6h3.5v1z"/>
-                                                                </svg>
-                                                            )}
-                                                            {doc.file_type?.toLowerCase() === "docx" && (
-                                                                <svg className="h-4 w-4 text-blue-500" fill="currentColor" viewBox="0 0 24 24">
-                                                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2l5 5h-5V4zM8 12h8v2H8v-2zm0 4h8v2H8v-2z"/>
-                                                                </svg>
-                                                            )}
-                                                            {doc.file_type?.toLowerCase() === "txt" && (
-                                                                <svg className="h-4 w-4 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
-                                                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2l5 5h-5V4zM8 12h8v2H8v-2zm0 4h8v2H8v-2z"/>
-                                                                </svg>
-                                                            )}
-                                                            <span className="text-xs text-[#1a3a52]/60">
-                                                                {doc.file_type?.toUpperCase() || "-"}
-                                                            </span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="p-4">
-                                                        <p className="text-xs text-[#1a3a52]/60">
-                                                            {doc.size_human ?? `${Math.round(doc.size / 1024)} KB`}
-                                                        </p>
-                                                    </td>
-                                                    <td className="p-4">
-                                                        <p className="text-xs text-[#1a3a52]/60">
-                                                            {new Date(doc.created_at).toLocaleDateString("id-ID", {
-                                                                day: "numeric",
-                                                                month: "short",
-                                                                year: "numeric",
-                                                            })}
-                                                        </p>
-                                                    </td>
-                                                    <td className="p-4 text-center">
-                                                        <p className="text-xs text-[#1a3a52]/60">
-                                                            {chunkCount}
-                                                        </p>
-                                                    </td>
-                                                    <td className="p-4">
-                                                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide ${
-                                                            ["indexed", "completed", "success"].includes(doc.status.toLowerCase())
-                                                                ? "text-green-600 bg-green-50"
-                                                                : ["processing", "pending"].includes(doc.status.toLowerCase())
-                                                                    ? "text-orange-600 bg-orange-50"
-                                                                    : ["failed", "error"].includes(doc.status.toLowerCase())
-                                                                        ? "text-red-600 bg-red-50"
-                                                                        : "text-[#1a3a52]/60 bg-white/15"
-                                                        }`}>
-                                                            {["processing", "pending"].includes(doc.status.toLowerCase()) && (
-                                                                <svg className="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z" />
-                                                                </svg>
-                                                            )}
-                                                            {doc.status.toLowerCase().replace(/^./, doc.status[0].toUpperCase())}
+                                                {/* File Type */}
+                                                <td className="p-4">
+                                                    <span className="rounded-md px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase bg-black/5 dark:bg-white/10 text-[#0f2436]/70 dark:text-[#f0f6fc]/70">
+                                                        {doc.file_type?.toUpperCase() || "DOC"}
+                                                    </span>
+                                                </td>
+
+                                                {/* File Size */}
+                                                <td className="p-4 text-[#0f2436]/70 dark:text-[#f0f6fc]/70">
+                                                    {doc.size_human ?? `${Math.round(doc.size / 1024)} KB`}
+                                                </td>
+
+                                                {/* Upload Date */}
+                                                <td className="p-4 text-[#0f2436]/70 dark:text-[#f0f6fc]/70">
+                                                    {new Date(doc.created_at).toLocaleDateString("id-ID", {
+                                                        day: "numeric",
+                                                        month: "short",
+                                                        year: "numeric",
+                                                    })}
+                                                </td>
+
+                                                {/* Chunks Count */}
+                                                <td className="p-4 text-center">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleOpenDetail(doc, "chunks")}
+                                                        className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold text-primary hover:bg-primary/20 transition-colors cursor-pointer"
+                                                        title="Buka rincian chunk"
+                                                    >
+                                                        {doc.chunk_count ?? 0}
+                                                    </button>
+                                                </td>
+
+                                                {/* Status */}
+                                                <td className="p-4">
+                                                    {isIndexed ? (
+                                                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-bold tracking-wide uppercase text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                                            Indexed
                                                         </span>
-                                                    </td>
-                                                    <td className="p-2 text-center">
-                                                        <div className="relative inline-block">
-                                                            <button
-                                                                onClick={() =>
-                                                                    setOpenMenuId(
-                                                                        openMenuId === doc.id ? null : doc.id,
-                                                                    )
-                                                                }
-                                                                className="flex h-7 w-7 items-center justify-center rounded-full text-[#1a6fa8] hover:bg-[#1a6fa8]/20 transition-colors"
+                                                    ) : isProc ? (
+                                                        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[10px] font-bold tracking-wide uppercase text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                                            <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
+                                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z" />
+                                                            </svg>
+                                                            Processing
+                                                        </span>
+                                                    ) : isFail ? (
+                                                        <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-500/10 px-2.5 py-0.5 text-[10px] font-bold tracking-wide uppercase text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                                                            <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                                                            Failed
+                                                        </span>
+                                                    ) : (
+                                                        <span className="rounded-full bg-black/5 dark:bg-white/10 px-2 py-0.5 text-[10px] text-[#0f2436]/60 dark:text-[#f0f6fc]/60">
+                                                            {doc.status}
+                                                        </span>
+                                                    )}
+                                                </td>
+
+                                                {/* Action Menu */}
+                                                <td className="p-4 text-center">
+                                                    <div className="relative inline-block">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setOpenMenuId(openMenuId === doc.id ? null : doc.id)}
+                                                            className="flex h-8 w-8 items-center justify-center rounded-xl text-[#0f2436]/60 dark:text-[#f0f6fc]/60 hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
+                                                            aria-label="Menu aksi dokumen"
+                                                        >
+                                                            <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.75a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm0 6a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm0 6a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z" />
+                                                            </svg>
+                                                        </button>
+
+                                                        {openMenuId === doc.id && (
+                                                            <div
+                                                                ref={menuRef}
+                                                                className="absolute right-0 z-20 mt-1 w-48 rounded-2xl glass-panel border shadow-xl p-1.5 text-left text-xs animate-in fade-in zoom-in-95 duration-150"
                                                             >
-                                                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01" />
-                                                                </svg>
-                                                            </button>
-                                                            {openMenuId === doc.id && (
-                                                                <div ref={menuRef} className="absolute right-0 z-10 mt-1 w-48 origin-top-right rounded-md bg-white shadow-2xl ring-1 ring-black/20">
-                                                                    <div className="py-1">
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                toggleDetail(doc, "chunks");
-                                                                                setOpenMenuId(null);
-                                                                            }}
-                                                                            className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#1a6fa8] hover:bg-[#1a6fa8]/10"
-                                                                        >
-                                                                            <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
-                                                                            </svg>
-                                                                            Lihat Chunk
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                toggleDetail(doc, "logs");
-                                                                                setOpenMenuId(null);
-                                                                            }}
-                                                                            className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#1a6fa8] hover:bg-[#1a6fa8]/10"
-                                                                        >
-                                                                            <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.667 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.667m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.008v.008H6.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
-                                                                            </svg>
-                                                                            Lihat Ingest Log
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                toggleDetail(doc, "visual");
-                                                                                setOpenMenuId(null);
-                                                                            }}
-                                                                            className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#1a6fa8] hover:bg-[#1a6fa8]/10"
-                                                                        >
-                                                                            <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3.75a2.25 2.25 0 0 1 2.25-2.25h15a2.25 2.25 0 0 1 2.25 2.25V21a2.25 2.25 0 0 1-2.25 2.25H4.5a2.25 2.25 0 0 1-2.25-2.25V3.75ZM7.5 10.5a3 3 0 1 1 6 0 3 3 0 0 1-6 0Zm-3 4.5v3.75c0 .414.336.75.75.75h9.75a.75.75 0 0 0 .75-.75v-3.75m-11.25 0h11.25" />
-                                                                            </svg>
-                                                                            Lihat OCR & Vision
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={() => handleReIngest(doc)}
-                                                                            className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#1a6fa8] hover:bg-[#1a6fa8]/10"
-                                                                        >
-                                                                            <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-                                                                            </svg>
-                                                                            Re-ingest Dokumen
-                                                                        </button>
-                                                                        <div className="border-t border-gray-100"></div>
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                handleDelete(doc);
-                                                                                setOpenMenuId(null);
-                                                                            }}
-                                                                            className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50"
-                                                                        >
-                                                                            <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                                                                                <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                                                                            </svg>
-                                                                            Hapus Dokumen
-                                                                        </button>
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                                {detailRow}
-                                            </Fragment>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleOpenDetail(doc, "chunks")}
+                                                                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-[#0f2436] dark:text-[#f0f6fc] hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer"
+                                                                >
+                                                                    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+                                                                    </svg>
+                                                                    Lihat Chunk
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleOpenDetail(doc, "logs")}
+                                                                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-[#0f2436] dark:text-[#f0f6fc] hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer"
+                                                                >
+                                                                    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.667 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.667m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.008v.008H6.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+                                                                    </svg>
+                                                                    Lihat Ingest Log
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleOpenDetail(doc, "visual")}
+                                                                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-[#0f2436] dark:text-[#f0f6fc] hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer"
+                                                                >
+                                                                    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+                                                                    </svg>
+                                                                    OCR & Vision
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => void handleReIngest(doc)}
+                                                                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-[#0f2436] dark:text-[#f0f6fc] hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer"
+                                                                >
+                                                                    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                                                                    </svg>
+                                                                    Re-ingest Dokumen
+                                                                </button>
+                                                                <div className="my-1 border-t border-white/10 dark:border-white/5" />
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => void handleDelete(doc)}
+                                                                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                                                                >
+                                                                    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                                                    </svg>
+                                                                    Hapus Dokumen
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
                                         );
                                     })
                                 )}
@@ -808,44 +643,184 @@ export default function ManageSection() {
                         </table>
                     </div>
 
-                    <div className="flex items-center justify-between border-t border-white/10 px-4 py-3">
-                        <span className="text-sm text-[#1a3a52]/60">
-                            Menampilkan {sortedDocs.length} dari {totalPages > 0 ? (currentPage * 10) : 0} dokumen
+                    {/* Mobile Card View (< md) */}
+                    <div className="block md:hidden overflow-y-auto flex-1 p-3 space-y-3">
+                        {loadingDocs ? (
+                            <div className="py-12 text-center text-xs text-[#0f2436]/50 dark:text-[#f0f6fc]/50">
+                                Memuat dokumen...
+                            </div>
+                        ) : sortedDocs.length === 0 ? (
+                            <div className="py-12 text-center text-xs text-[#0f2436]/50 dark:text-[#f0f6fc]/50">
+                                Tidak ada dokumen ditemukan.
+                            </div>
+                        ) : (
+                            sortedDocs.map((doc) => {
+                                const isSelected = selectedIds.has(doc.id);
+                                const normStatus = doc.status.toLowerCase();
+                                const isIndexed = ["indexed", "completed", "success"].includes(normStatus);
+                                const isProc = ["processing", "pending"].includes(normStatus);
+
+                                return (
+                                    <div
+                                        key={doc.id}
+                                        className={`rounded-2xl border border-white/10 dark:border-white/5 bg-white/40 dark:bg-slate-900/40 p-4 space-y-3 transition-all ${
+                                            isSelected ? "ring-2 ring-primary" : ""
+                                        }`}
+                                    >
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="flex items-center gap-2.5">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isSelected}
+                                                    onChange={() => toggleSelectOne(doc.id)}
+                                                    className="h-4 w-4 rounded accent-primary cursor-pointer"
+                                                    aria-label={`Pilih ${doc.document_name}`}
+                                                />
+                                                <span className="rounded-md px-2 py-0.5 text-[10px] font-bold uppercase bg-primary/10 text-primary">
+                                                    {doc.file_type?.toUpperCase() || "DOC"}
+                                                </span>
+                                            </div>
+                                            <span
+                                                className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                                                    isIndexed
+                                                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                                        : isProc
+                                                          ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                                                          : "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                                                }`}
+                                            >
+                                                {doc.status}
+                                            </span>
+                                        </div>
+
+                                        <p
+                                            onClick={() => handleOpenDetail(doc, "chunks")}
+                                            className="font-semibold text-sm text-[#0f2436] dark:text-[#f0f6fc] cursor-pointer"
+                                        >
+                                            {doc.document_name}
+                                        </p>
+
+                                        <div className="flex items-center justify-between text-xs text-[#0f2436]/60 dark:text-[#f0f6fc]/60">
+                                            <span>{doc.size_human ?? `${Math.round(doc.size / 1024)} KB`}</span>
+                                            <span>{doc.chunk_count ?? 0} Chunks</span>
+                                            <span>
+                                                {new Date(doc.created_at).toLocaleDateString("id-ID", {
+                                                    day: "numeric",
+                                                    month: "short",
+                                                })}
+                                            </span>
+                                        </div>
+
+                                        <div className="flex items-center gap-2 border-t border-white/10 dark:border-white/5 pt-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleOpenDetail(doc, "chunks")}
+                                                className="flex-1 rounded-xl bg-primary/10 py-1.5 text-xs font-semibold text-primary text-center hover:bg-primary/20"
+                                            >
+                                                Detail
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => void handleReIngest(doc)}
+                                                className="rounded-xl border border-white/10 p-1.5 text-xs text-[#0f2436]/70 dark:text-[#f0f6fc]/70"
+                                                title="Re-ingest"
+                                            >
+                                                ↻
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => void handleDelete(doc)}
+                                                className="rounded-xl border border-rose-500/20 p-1.5 text-xs text-rose-600 dark:text-rose-400"
+                                                title="Hapus"
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+
+                    {/* Pagination Bar */}
+                    <div className="flex items-center justify-between border-t border-white/10 dark:border-white/5 px-4 md:px-6 py-3 bg-white/30 dark:bg-slate-900/40 shrink-0 text-xs text-[#0f2436]/60 dark:text-[#f0f6fc]/60">
+                        <span>
+                            Halaman {currentPage} dari {totalPages}
                         </span>
-                        <div className="flex gap-1">
+                        <div className="flex items-center gap-1.5">
                             <button
-                                disabled={currentPage === 1}
-                                onClick={() => refreshDocs(currentPage - 1)}
-                                className="rounded-lg px-3 py-1 text-sm transition-colors disabled:opacity-50 hover:bg-white/10"
+                                type="button"
+                                disabled={currentPage <= 1 || loadingDocs}
+                                onClick={() => void refreshDocs(currentPage - 1)}
+                                className="flex h-8 items-center justify-center rounded-xl px-3 border border-white/10 dark:border-white/5 hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-40 transition-colors cursor-pointer"
                             >
-                                ←
+                                ← Sebelumnya
                             </button>
-                            <span className="px-3 py-1 text-sm bg-[#1a6fa8]/20 rounded-lg text-[#1a6fa8]">
-                                {currentPage} / {totalPages}
-                            </span>
                             <button
-                                disabled={currentPage === totalPages}
-                                onClick={() => refreshDocs(currentPage + 1)}
-                                className="rounded-lg px-3 py-1 text-sm transition-colors disabled:opacity-50 hover:bg-white/10"
+                                type="button"
+                                disabled={currentPage >= totalPages || loadingDocs}
+                                onClick={() => void refreshDocs(currentPage + 1)}
+                                className="flex h-8 items-center justify-center rounded-xl px-3 border border-white/10 dark:border-white/5 hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-40 transition-colors cursor-pointer"
                             >
-                                →
+                                Selanjutnya →
                             </button>
                         </div>
                     </div>
                 </div>
-
-                {uploadError && (
-                    <div className="rounded-xl border border-red-200 bg-red-50/90 p-3 text-xs text-red-700 shadow-sm animate-in fade-in duration-200">
-                        {uploadError}
-                    </div>
-                )}
             </div>
 
+            {/* Floating Bulk Action Bar */}
+            {someSelected && (
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-full glass-panel border px-5 py-2.5 shadow-2xl animate-in slide-in-from-bottom duration-200">
+                    <span className="text-xs font-semibold text-[#0f2436] dark:text-[#f0f6fc]">
+                        {selectedIds.size} dipilih
+                    </span>
+                    <div className="h-4 w-px bg-white/20 dark:bg-white/10" />
+                    <button
+                        type="button"
+                        onClick={() => void handleBulkReIngest()}
+                        className="flex items-center gap-1.5 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-white hover:bg-primary-hover transition-colors cursor-pointer"
+                    >
+                        <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                        </svg>
+                        Re-ingest
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => void handleBulkDelete()}
+                        className="flex items-center gap-1.5 rounded-full bg-rose-600 px-3 py-1 text-xs font-semibold text-white hover:bg-rose-700 transition-colors cursor-pointer"
+                    >
+                        <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                        </svg>
+                        Hapus
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setSelectedIds(new Set())}
+                        className="rounded-full px-2.5 py-1 text-xs text-[#0f2436]/60 dark:text-[#f0f6fc]/60 hover:text-[#0f2436] dark:hover:text-[#f0f6fc] transition-colors cursor-pointer"
+                    >
+                        Batal
+                    </button>
+                </div>
+            )}
+
+            {/* Document Detail Inspector Drawer */}
+            <DocumentDetailDrawer
+                doc={drawerDoc}
+                isOpen={isDrawerOpen}
+                onClose={() => setIsDrawerOpen(false)}
+                activeTab={drawerTab}
+                onChangeTab={setDrawerTab}
+                onReIngest={handleReIngest}
+            />
+
+            {/* Upload Modal */}
             <UploadModal
-                isOpen={isUploadOpenState}
+                isOpen={isUploadOpen}
                 onClose={() => {
-                    setIsUploadOpenState(false);
-                    setSelectedFile(null);
+                    setIsUploadOpen(false);
                     setUploadError(null);
                 }}
                 onUpload={submitUpload}
