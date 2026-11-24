@@ -48,6 +48,14 @@ export default function AppLayout({
 
     return (
         <div className="flex h-full w-full overflow-hidden">
+            {/* Skip to content accessibility link */}
+            <a
+                href="#main-content"
+                className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-xl focus:bg-blue-600 focus:px-4 focus:py-2 focus:text-xs focus:font-semibold focus:text-white focus:shadow-xl focus:outline-none"
+            >
+                Langsung ke konten utama
+            </a>
+
             {/* Sidebar (selalu statis, tidak overlap konten) */}
             <Sidebar onClose={() => {}} />
 

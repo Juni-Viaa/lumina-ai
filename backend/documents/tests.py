@@ -5,6 +5,70 @@ from rest_framework.test import APIClient
 from core.models import User, Document, Chunk
 
 
+class DocumentAccessControlTestCase(TestCase):
+    """Pengujian hak akses dokumen: user hanya melihat milik sendiri, admin juga tidak boleh."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            email="admin@example.com",
+            username="admin",
+            password="password123",
+            role="admin",
+        )
+        self.user_a = User.objects.create_user(
+            email="usera@example.com",
+            username="usera",
+            password="password123",
+            role="mahasiswa",
+        )
+        self.user_b = User.objects.create_user(
+            email="userb@example.com",
+            username="userb",
+            password="password123",
+            role="mahasiswa",
+        )
+        self.doc_a = Document.objects.create(
+            user=self.user_a,
+            document_name="doc_a.pdf",
+            path_file="/tmp/doc_a.pdf",
+            file_type="pdf",
+            size=1024,
+            status=Document.Status.INDEXED,
+        )
+        self.doc_b = Document.objects.create(
+            user=self.user_b,
+            document_name="doc_b.pdf",
+            path_file="/tmp/doc_b.pdf",
+            file_type="pdf",
+            size=1024,
+            status=Document.Status.INDEXED,
+        )
+        self.client = APIClient()
+
+    def test_user_can_see_own_document(self):
+        self.client.force_authenticate(user=self.user_a)
+        response = self.client.get(f"/api/documents/{self.doc_a.id}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_user_cannot_see_other_user_document(self):
+        self.client.force_authenticate(user=self.user_a)
+        response = self.client.get(f"/api/documents/{self.doc_b.id}/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_admin_cannot_see_other_user_document(self):
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.get(f"/api/documents/{self.doc_a.id}/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_admin_cannot_see_other_user_document_in_list(self):
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.get("/api/documents/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        ids = [item["id"] for item in response.data["results"]]
+        self.assertNotIn(self.doc_a.id, ids)
+        self.assertNotIn(self.doc_b.id, ids)
+
+
 class DocumentVisualActionTests(TestCase):
     def setUp(self):
         self.client = APIClient()

@@ -70,6 +70,7 @@ DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER)
 # ── DRF ─────────────────────────────────────────────────────────────────────
 REST_FRAMEWORK["DEFAULT_RENDERER_CLASSES"] = [  # noqa: F405
     "rest_framework.renderers.JSONRenderer",
+    "core.renderers.ServerSentEventRenderer",
 ]
 
 # ── Logging ─────────────────────────────────────────────────────────────────

@@ -114,10 +114,54 @@ def _mark_failed(document_id: int | None, session_id: str | None, error_message:
 
 # ── Step functions ─────────────────────────────────────────────────────────────
 
+def _compute_sha256(file_path: Path) -> str | None:
+    """Compute SHA256 hash of a file for deduplication."""
+    try:
+        hasher = hashlib.sha256()
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                hasher.update(chunk)
+        return hasher.hexdigest()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed to compute SHA256 for %s: %s", file_path, exc)
+        return None
+
+
 def _copy_to_documents(file_path: Path, original_filename: str, document_id: int | None, session_id: str | None) -> Path:
-    """Copy the uploaded file into the documents directory with UUID name."""
-    safe_name = file_path.name
+    """Copy the uploaded file into the documents directory with UUID name.
+
+    Uses SHA256 deduplication: if a file with the same hash already exists,
+    skip the copy and return the existing file path. Filename includes a hash
+    prefix (first 16 hex chars of SHA256) so duplicate lookup is O(1) via glob
+    instead of scanning every file in the directory.
+    """
+    suffix = file_path.suffix.lower()
+    source_hash = _compute_sha256(file_path)
+
+    # ── Deduplication: fast lookup via hash prefix glob ───────────────────────
+    if source_hash:
+        hash_prefix = source_hash[:16]
+        for existing in config.DOCUMENTS_DIR.glob(f"{hash_prefix}_*"):
+            if not existing.is_file():
+                continue
+            existing_hash = _compute_sha256(existing)
+            if existing_hash == source_hash:
+                _log_ingest(
+                    document_id,
+                    "copy",
+                    f"Skipped copy (duplicate, hash={source_hash[:12]}...) "
+                    f"using existing {existing.name} (original: {original_filename})",
+                    session_id,
+                )
+                return existing
+
+    # ── Generate unique destination name with UUID ────────────────────────────
+    if source_hash:
+        safe_name = f"{source_hash[:16]}_{uuid.uuid4().hex}{suffix}"
+    else:
+        safe_name = f"{uuid.uuid4().hex}{suffix}"
     dest = config.DOCUMENTS_DIR / safe_name
+
     if dest.resolve() != file_path.resolve():
         shutil.copy2(file_path, dest)
         _log_ingest(document_id, "copy", f"Copied to documents/{dest.name} (original: {original_filename})", session_id)
@@ -624,6 +668,12 @@ def run_ingest_pipeline(
 
         # 1. Copy file into documents dir
         dest = _copy_to_documents(file_path, original_filename, document_id, session_id)
+
+        # Update Document.path_file to point to the permanent storage location
+        DocumentModel.objects.filter(pk=document_id).update(
+            path_file=str(dest),
+            updated_at=timezone.now(),
+        )
 
         # 2. Load document
         is_ocr = is_ocr or (dest.suffix.lower() in image_ext)

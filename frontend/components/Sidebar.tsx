@@ -8,6 +8,8 @@ import Image from "next/image";
 import { api } from "@/lib/api";
 import { getUser, logout } from "@/lib/auth";
 import { useTheme } from "@/components/ThemeProvider";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { useToast } from "@/components/ui/Toast";
 
 import { NewChatButton } from "@/components/chat/NewChatButton";
 import { SidebarNav } from "@/components/chat/SidebarNav";
@@ -94,8 +96,11 @@ export default function Sidebar({ onClose }: SidebarProps) {
     const user = getUser();
     const isAdmin = user?.role === "admin" && user?.is_staff === true;
     const { setTheme } = useTheme();
+    const toast = useToast();
 
     const [accountOpen, setAccountOpen] = useState(false);
+    const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
     const [conversations, setConversations] = useState<ConversationItem[]>([]);
     const activeConvStr = useSyncExternalStore(
         subscribeActiveConversation,
@@ -262,22 +267,30 @@ export default function Sidebar({ onClose }: SidebarProps) {
         onClose();
     }, [pathname, router, onClose]);
 
-    const handleDeleteConversation = useCallback(async (e: React.MouseEvent, id: number) => {
+    const handleDeleteConversation = useCallback((e: React.MouseEvent, id: number) => {
         e.stopPropagation();
-        if (!window.confirm("Hapus percakapan ini dari riwayat?")) return;
+        setConfirmDeleteId(id);
+    }, []);
 
+    const confirmDelete = useCallback(async () => {
+        if (!confirmDeleteId) return;
+        setIsDeleting(true);
         try {
-            await api.delete(`/conversations/${id}/`);
-            setConversations((prev) => prev.filter((c) => c.id !== id));
-            setSearchResults((prev) => prev.filter((c) => c.id !== id));
+            await api.delete(`/conversations/${confirmDeleteId}/`);
+            setConversations((prev) => prev.filter((c) => c.id !== confirmDeleteId));
+            setSearchResults((prev) => prev.filter((c) => c.id !== confirmDeleteId));
 
-            if (activeConversationId === id) {
+            if (activeConversationId === confirmDeleteId) {
                 handleNewChat();
             }
+            toast.success("Percakapan berhasil dihapus");
         } catch {
-            alert("Gagal menghapus percakapan. Silakan coba lagi.");
+            toast.error("Gagal menghapus percakapan. Silakan coba lagi.");
+        } finally {
+            setIsDeleting(false);
+            setConfirmDeleteId(null);
         }
-    }, [activeConversationId, handleNewChat]);
+    }, [confirmDeleteId, activeConversationId, handleNewChat, toast]);
 
     function handleLogout() {
         logout();
@@ -708,6 +721,18 @@ export default function Sidebar({ onClose }: SidebarProps) {
                     </svg>
                 </button>
             </div>
+
+            <ConfirmModal
+                isOpen={confirmDeleteId !== null}
+                title="Hapus Percakapan"
+                description="Apakah Anda yakin ingin menghapus percakapan ini dari riwayat? Tindakan ini tidak dapat dibatalkan."
+                confirmText="Hapus"
+                cancelText="Batal"
+                variant="danger"
+                loading={isDeleting}
+                onConfirm={confirmDelete}
+                onCancel={() => setConfirmDeleteId(null)}
+            />
         </aside>
     );
 }

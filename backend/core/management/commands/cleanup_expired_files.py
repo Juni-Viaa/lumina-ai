@@ -59,7 +59,7 @@ class Command(BaseCommand):
 
     def _cleanup_expired_files(self, dry_run: bool):
         """Hapus file upload yang expired atau berhasil di-embed."""
-        uploads_dir = config.BASE_DIR / "media" / "uploads"
+        uploads_dir = config.MEDIA_ROOT / "uploads"
 
         if not uploads_dir.exists():
             self.stdout.write(self.style.WARNING("No uploads directory found"))

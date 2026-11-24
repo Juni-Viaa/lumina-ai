@@ -197,13 +197,13 @@ def _format_context(chunks: list[Chunk]) -> str:
 
 
 
-def _build_llm() -> ChatGoogleGenerativeAI:
+def _build_llm(streaming: bool = False) -> ChatGoogleGenerativeAI:
     return ChatGoogleGenerativeAI(
         model=config.GEMINI_MODEL,
         google_api_key=config.GEMINI_API_KEY,
         temperature=config.GEMINI_TEMPERATURE,
         max_output_tokens=config.GEMINI_MAX_TOKENS,
-        streaming=False,
+        streaming=streaming,
     )
 
 
@@ -408,4 +408,155 @@ def run_rag_query(query_id: int, question: str, top_k: int | None = None) -> dic
         "answer": answer_text,
         "response_time_ms": elapsed,
         "sources": sources,
+    }
+
+
+def stream_rag_query(query_id: int, question: str, top_k: int | None = None):
+    """
+    Generator that executes the RAG pipeline step-by-step and yields progress events,
+    tokens, and final answer with sources.
+    """
+    top_k = top_k or config.TOP_K
+    dense_top_k = config.DENSE_TOP_K
+    sparse_top_k = config.SPARSE_TOP_K
+    reranker_input_k = config.RERANKER_INPUT_K
+    rrf_k = config.RRF_K
+
+    try:
+        query = Query.objects.get(pk=query_id)
+    except Query.DoesNotExist:
+        yield {"type": "error", "message": "Pertanyaan tidak ditemukan."}
+        return
+
+    if not config.GEMINI_API_KEY:
+        logger.error("GEMINI_API_KEY is not set")
+        yield {
+            "type": "error",
+            "message": "Server belum dikonfigurasi untuk menghasilkan jawaban (API key LLM belum tersedia).",
+        }
+        return
+
+    start = time.time()
+
+    # 1. Embed query
+    yield {"type": "step", "step": "embedding", "message": "Embedding query..."}
+    query.current_step = "embedding"
+    query.save(update_fields=["current_step", "updated_at"])
+    try:
+        embeddings = get_embeddings()
+        question_vector = embeddings.embed_query(f"query: {question}")
+    except Exception as exc:
+        logger.exception("Embedding failed")
+        yield {"type": "error", "message": "Gagal memproses embedding pertanyaan."}
+        return
+
+    # 2. Hybrid search (Dense pgvector + Sparse PostgreSQL FTS) + RRF Fusion
+    yield {"type": "step", "step": "retrieval", "message": "Retrieve context..."}
+    query.current_step = "similarity_search"
+    query.save(update_fields=["current_step", "updated_at"])
+    try:
+        dense_chunks = _similarity_search(question_vector, dense_top_k, user_id=query.user_id)
+        sparse_chunks = _sparse_search(question, sparse_top_k, user_id=query.user_id)
+        candidate_chunks = _rrf_fusion(dense_chunks, sparse_chunks, k=rrf_k, top_k=reranker_input_k)
+    except Exception as exc:
+        logger.exception("Retrieval search failed")
+        yield {"type": "error", "message": "Gagal melakukan pencarian dokumen."}
+        return
+
+    if not candidate_chunks:
+        yield {
+            "type": "error",
+            "message": "Belum ada dokumen terindeks yang bisa dijadikan sumber jawaban. Silakan unggah dokumen terlebih dahulu.",
+        }
+        return
+
+    # 3. Rerank candidate chunks with BGE Reranker v2 M3
+    yield {"type": "step", "step": "reranking", "message": "Reranking context..."}
+    query.current_step = "reranking"
+    query.save(update_fields=["current_step", "updated_at"])
+    try:
+        chunks, rerank_ms, fallback_used = rerank_chunks(
+            query=question,
+            chunks=candidate_chunks,
+            top_k=top_k,
+        )
+        chunks = _expand_visual_pairs(chunks, user_id=query.user_id)
+    except Exception as exc:
+        logger.exception("Reranker failed")
+        chunks = candidate_chunks[:top_k]
+
+    # 4. Build context
+    query.current_step = "context"
+    query.save(update_fields=["current_step", "updated_at"])
+    context = _format_context(chunks)
+
+    # 5. Generate answer with Gemini
+    yield {"type": "step", "step": "generating", "message": "AI generating answer..."}
+    query.current_step = "generate"
+    query.save(update_fields=["current_step", "updated_at"])
+
+    llm = _build_llm(streaming=True)
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", config.RAG_SYSTEM_PROMPT),
+        ("human", "{question}"),
+    ])
+    chain = prompt | llm | StrOutputParser()
+
+    answer_text = ""
+    try:
+        for chunk in chain.stream({"context": context, "question": question}):
+            if chunk:
+                answer_text += chunk
+                yield {"type": "token", "token": chunk}
+    except Exception as exc:
+        logger.warning("Streaming LLM failed, trying non-streaming invoke: %s", exc)
+        try:
+            answer_text = _invoke_llm_with_retry(chain, {"context": context, "question": question})
+            yield {"type": "token", "token": answer_text}
+        except Exception as retry_exc:
+            logger.exception("LLM generation failed completely")
+            yield {"type": "error", "message": "Gagal menghasilkan jawaban. Silakan coba lagi."}
+            return
+
+    if not (answer_text or "").strip():
+        yield {"type": "error", "message": "Jawaban tidak dapat dibuat untuk pertanyaan ini."}
+        return
+
+    elapsed = round((time.time() - start) * 1000)
+
+    # 6. Format sources
+    sources = [
+        {
+            "source": chunk.document.document_name,
+            "page": chunk.page,
+            "score": round(float(chunk.rerank_score), 6) if hasattr(chunk, "rerank_score") else (
+                round(float(chunk.rrf_score), 6) if hasattr(chunk, "rrf_score") else (
+                    round(float(1.0 - chunk.distance), 4) if hasattr(chunk, "distance") else None
+                )
+            ),
+            "excerpt": chunk.chunk_text[:200],
+            "source_type": (chunk.metadata or {}).get("source_type"),
+            "image_ref": (chunk.metadata or {}).get("image_ref"),
+            "ocr_confidence": (chunk.metadata or {}).get("ocr_confidence"),
+        }
+        for chunk in chunks
+    ]
+
+    # 7. Persist answer + history
+    answer_id = _save_answer(query, answer_text, sources)
+    query.status = Query.Status.ANSWERED
+    query.response_time_ms = elapsed
+    query.current_step = "done"
+    query.save(update_fields=["status", "response_time_ms", "current_step", "updated_at"])
+
+    yield {
+        "type": "done",
+        "data": {
+            "success": True,
+            "query_id": query_id,
+            "answer_id": answer_id,
+            "answer": answer_text,
+            "response_time_ms": elapsed,
+            "sources": sources,
+        },
     }

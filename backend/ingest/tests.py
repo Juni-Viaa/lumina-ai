@@ -160,11 +160,18 @@ class IngestServicesUnitTest(TestCase):
             (Path(self.temp_dir) / "docs").mkdir(parents=True, exist_ok=True)
             copied = _copy_to_documents(test_file, "source.pdf", document_id=None, session_id=None)
             self.assertTrue(copied.exists())
-            self.assertEqual(copied.name, "source.pdf")
+            # Filename should be hash_prefix + uuid + suffix (UUID-based, not original name)
+            self.assertRegex(copied.name, r"^[0-9a-f]{16}_[0-9a-f]{32}\.pdf$")
 
-            # Copying same file when already at destination
+            # Copying same file when already at destination returns same path
             copied_again = _copy_to_documents(copied, "source.pdf", document_id=None, session_id=None)
             self.assertEqual(copied, copied_again)
+
+            # Copying a different file with identical content should be deduplicated
+            test_file2 = Path(self.temp_dir) / "source2.pdf"
+            test_file2.write_bytes(b"%PDF-1.4 sample content")
+            copied_duplicate = _copy_to_documents(test_file2, "source2.pdf", document_id=None, session_id=None)
+            self.assertEqual(copied, copied_duplicate)
 
     def test_load_document_pdf(self):
         pdf_path = Path(self.temp_dir) / "test_1page.pdf"

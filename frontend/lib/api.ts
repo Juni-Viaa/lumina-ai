@@ -142,6 +142,108 @@ async function request<T>(
     }
 }
 
+export interface StreamEventData {
+    type: "step" | "token" | "done" | "error" | string;
+    step?: string;
+    message?: string;
+    token?: string;
+    data?: {
+        success?: boolean;
+        query_id?: number;
+        answer_id?: number | null;
+        answer?: string;
+        response_time_ms?: number;
+        sources?: Array<{
+            source: string;
+            page?: number | null;
+            score?: number | null;
+            excerpt?: string;
+            [key: string]: unknown;
+        }>;
+        conversation_id?: number;
+        [key: string]: unknown;
+    };
+    [key: string]: unknown;
+}
+
+export interface StreamOptions {
+    body?: unknown;
+    headers?: HeadersInit;
+    signal?: AbortSignal;
+    onEvent: (data: StreamEventData) => void;
+    onError?: (error: Error) => void;
+    onDone?: () => void;
+}
+
+async function streamPost(
+    path: string,
+    { body, headers, signal, onEvent, onError, onDone }: StreamOptions,
+): Promise<void> {
+    const finalHeaders = buildHeaders({
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
+        ...headers,
+    });
+
+    const csrf = getCookie("csrftoken") ?? (await getCsrfToken());
+    if (csrf) {
+        finalHeaders["X-CSRFToken"] = csrf;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}${path}`, {
+            method: "POST",
+            headers: finalHeaders,
+            credentials: "include",
+            body: body ? JSON.stringify(body) : undefined,
+            signal,
+        });
+
+        if (!response.ok) {
+            const err = (await response.json().catch(() => null)) as ApiErrorPayload | null;
+            throw new ApiError(formatApiError(err, `Stream gagal (${response.status})`), response.status);
+        }
+
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error("Respons streaming tidak dapat dibaca");
+
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const parts = buffer.split("\n\n");
+            buffer = parts.pop() ?? "";
+
+            for (const part of parts) {
+                const trimmed = part.trim();
+                if (!trimmed || trimmed.startsWith(":")) continue;
+
+                if (trimmed.startsWith("data: ")) {
+                    const jsonStr = trimmed.slice(6);
+                    let parsed: unknown;
+                    try {
+                        parsed = JSON.parse(jsonStr);
+                    } catch {
+                        continue;
+                    }
+                    onEvent(parsed as StreamEventData);
+                }
+            }
+        }
+        onDone?.();
+    } catch (err) {
+        if (onError && err instanceof Error) {
+            onError(err);
+        } else {
+            throw err;
+        }
+    }
+}
+
 export const api = {
     get: <T>(path: string, options?: RequestOptions) => request<T>(path, options),
     post: <T>(path: string, body?: unknown, options?: Omit<RequestOptions, "body">) =>
@@ -152,6 +254,8 @@ export const api = {
         request<T>(path, { method: "DELETE", ...options }),
     uploadFile: <T>(path: string, formData: FormData, options?: Omit<RequestOptions, "body" | "isFormData">) =>
         request<T>(path, { method: "POST", body: formData, isFormData: true, ...options }),
+    streamPost: (path: string, options: StreamOptions) => streamPost(path, options),
+    getEventSourceUrl: (path: string) => `${API_BASE_URL}${path}`,
 };
 
 export interface DocumentItem {

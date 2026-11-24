@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { getUser } from "@/lib/auth";
 import { GlassButton } from "@/components/ui/GlassButton";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { useToast } from "@/components/ui/Toast";
+import { useDocumentSSE } from "@/hooks/useSSE";
 import DocumentStats from "./DocumentStats";
 import UploadModal from "./UploadModal";
 import DocumentDetailDrawer, {
@@ -62,6 +65,11 @@ export default function ManageSection() {
     // Action dropdown menu state
     const [openMenuId, setOpenMenuId] = useState<number | null>(null);
     const menuRef = useRef<HTMLDivElement>(null);
+
+    // Delete confirmation modal state
+    const [deleteTarget, setDeleteTarget] = useState<{ type: "single"; doc: DocumentItem } | { type: "bulk" } | null>(null);
+    const [isDeletingDoc, setIsDeletingDoc] = useState(false);
+    const toast = useToast();
 
     // Redirect non-admin
     useEffect(() => {
@@ -124,21 +132,26 @@ export default function ManageSection() {
         return () => clearTimeout(timer);
     }, [refreshDocs, fetchSummary]);
 
-    // Background polling while processing
-    useEffect(() => {
-        const hasProcessing = docs.some((doc) => {
-            const st = doc.status.toLowerCase();
-            return st === "processing" || st === "pending";
-        });
-        if (!hasProcessing) return;
-
-        const intervalId = setInterval(() => {
-            void refreshDocs(currentPage);
-            void fetchSummary();
-        }, 3000);
-
-        return () => clearInterval(intervalId);
-    }, [docs, currentPage, refreshDocs, fetchSummary]);
+    // Real-time document updates via SSE without polling
+    useDocumentSSE({
+        enabled: isAdmin,
+        onStats: (newStats) => {
+            setStats(newStats);
+        },
+        onDocStatus: (doc) => {
+            setDocs((prevDocs) =>
+                prevDocs.map((d) => (d.id === doc.id ? { ...d, status: doc.status } : d))
+            );
+            if (doc.status === "indexed" || doc.status === "failed") {
+                void refreshDocs(currentPage);
+                if (doc.status === "indexed") {
+                    toast.success(`Dokumen "${doc.document_name}" selesai diproses.`);
+                } else if (doc.status === "failed") {
+                    toast.error(`Dokumen "${doc.document_name}" gagal diproses.`);
+                }
+            }
+        },
+    });
 
     // Sorted client-side docs for date order
     const sortedDocs = useMemo(() => {
@@ -179,17 +192,42 @@ export default function ManageSection() {
         setOpenMenuId(null);
     };
 
-    const handleDelete = async (doc: DocumentItem) => {
-        if (!window.confirm(`Hapus dokumen "${doc.document_name}" beserta seluruh chunk-nya?`)) {
-            return;
-        }
+    const handleDelete = (doc: DocumentItem) => {
+        setDeleteTarget({ type: "single", doc });
+    };
+
+    const handleBulkDelete = () => {
+        if (selectedIds.size === 0) return;
+        setDeleteTarget({ type: "bulk" });
+    };
+
+    const confirmExecuteDelete = async () => {
+        if (!deleteTarget) return;
+        setIsDeletingDoc(true);
         try {
-            await api.delete(`/documents/${doc.id}/`);
-            if (drawerDoc?.id === doc.id) setIsDrawerOpen(false);
-            setOpenMenuId(null);
+            if (deleteTarget.type === "single") {
+                await api.delete(`/documents/${deleteTarget.doc.id}/`);
+                if (drawerDoc?.id === deleteTarget.doc.id) setIsDrawerOpen(false);
+                setOpenMenuId(null);
+                toast.success(`Dokumen "${deleteTarget.doc.document_name}" berhasil dihapus.`);
+            } else {
+                const results = await Promise.allSettled(
+                    Array.from(selectedIds).map((id) => api.delete(`/documents/${id}/`)),
+                );
+                const failed = results.filter((r) => r.status === "rejected").length;
+                if (failed > 0) {
+                    toast.error(`${failed} dokumen gagal dihapus.`);
+                } else {
+                    toast.success(`${selectedIds.size} dokumen berhasil dihapus.`);
+                }
+                setSelectedIds(new Set());
+            }
             await Promise.all([refreshDocs(currentPage), fetchSummary()]);
         } catch {
-            setUploadError("Gagal menghapus dokumen.");
+            toast.error("Gagal menghapus dokumen.");
+        } finally {
+            setIsDeletingDoc(false);
+            setDeleteTarget(null);
         }
     };
 
@@ -197,26 +235,12 @@ export default function ManageSection() {
         try {
             await api.post(`/ingest/${doc.id}/re-ingest/`, {});
             setOpenMenuId(null);
+            toast.info(`Memulai re-ingest untuk "${doc.document_name}"`);
             await Promise.all([refreshDocs(currentPage), fetchSummary()]);
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : "Gagal memulai re-ingest dokumen.";
-            setUploadError(msg);
+            toast.error(msg);
         }
-    };
-
-    const handleBulkDelete = async () => {
-        if (selectedIds.size === 0) return;
-        if (!window.confirm(`Hapus ${selectedIds.size} dokumen yang dipilih?`)) return;
-
-        const results = await Promise.allSettled(
-            Array.from(selectedIds).map((id) => api.delete(`/documents/${id}/`)),
-        );
-        const failed = results.filter((r) => r.status === "rejected").length;
-        if (failed > 0) {
-            setUploadError(`${failed} dokumen gagal dihapus.`);
-        }
-        setSelectedIds(new Set());
-        await Promise.all([refreshDocs(currentPage), fetchSummary()]);
     };
 
     const handleBulkReIngest = async () => {
@@ -722,18 +746,24 @@ export default function ManageSection() {
                                             <button
                                                 type="button"
                                                 onClick={() => void handleReIngest(doc)}
-                                                className="rounded-xl border border-white/10 p-1.5 text-xs text-[#0f2436]/70 dark:text-[#f0f6fc]/70"
+                                                className="rounded-xl border border-white/10 p-2 text-xs text-[#0f2436]/70 dark:text-[#f0f6fc]/70 hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer"
                                                 title="Re-ingest"
+                                                aria-label={`Re-ingest ${doc.document_name}`}
                                             >
-                                                ↻
+                                                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                                                </svg>
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => void handleDelete(doc)}
-                                                className="rounded-xl border border-rose-500/20 p-1.5 text-xs text-rose-600 dark:text-rose-400"
+                                                className="rounded-xl border border-rose-500/20 p-2 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
                                                 title="Hapus"
+                                                aria-label={`Hapus ${doc.document_name}`}
                                             >
-                                                ✕
+                                                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09 2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                                </svg>
                                             </button>
                                         </div>
                                     </div>
@@ -826,6 +856,27 @@ export default function ManageSection() {
                 onUpload={submitUpload}
                 isUploading={isUploading}
                 uploadError={uploadError}
+            />
+
+            {/* Delete Confirmation Modal */}
+            <ConfirmModal
+                isOpen={deleteTarget !== null}
+                title={
+                    deleteTarget?.type === "single"
+                        ? "Hapus Dokumen"
+                        : "Hapus Dokumen Terpilih"
+                }
+                description={
+                    deleteTarget?.type === "single"
+                        ? `Apakah Anda yakin ingin menghapus dokumen "${deleteTarget.doc.document_name}" beserta seluruh chunk dan indeksnya? Tindakan ini tidak dapat dibatalkan.`
+                        : `Apakah Anda yakin ingin menghapus ${selectedIds.size} dokumen yang dipilih beserta seluruh chunk dan indeksnya? Tindakan ini tidak dapat dibatalkan.`
+                }
+                confirmText="Hapus"
+                cancelText="Batal"
+                variant="danger"
+                loading={isDeletingDoc}
+                onConfirm={confirmExecuteDelete}
+                onCancel={() => setDeleteTarget(null)}
             />
         </div>
     );

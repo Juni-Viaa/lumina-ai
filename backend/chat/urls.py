@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
-from .views import AskView, QueryViewSet, AnswerViewSet, HistoryViewSet, ConversationViewSet
+from .views import AskView, AskStreamView, QueryViewSet, AnswerViewSet, HistoryViewSet, ConversationViewSet
 
 router = DefaultRouter()
 router.register(r"conversations", ConversationViewSet, basename="conversation")
@@ -10,6 +10,7 @@ router.register(r"answers", AnswerViewSet, basename="answer")
 router.register(r"history", HistoryViewSet, basename="history")
 
 urlpatterns = [
+    path("ask/stream/", AskStreamView.as_view(), name="ask-stream"),
     path("ask/", AskView.as_view(), name="ask"),
     path("", include(router.urls)),
 ]

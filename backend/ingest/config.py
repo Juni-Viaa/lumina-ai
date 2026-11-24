@@ -9,11 +9,12 @@ from django.conf import settings
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
 BASE_DIR = Path(settings.BASE_DIR)
-DOCUMENTS_DIR = BASE_DIR / "documents"
+MEDIA_ROOT = settings.MEDIA_ROOT
+DOCUMENTS_DIR = MEDIA_ROOT / "documents"
 VECTORSTORE_DIR = BASE_DIR / "vectorstore"
 HF_CACHE_DIR = BASE_DIR / "hf_cache"
 
-DOCUMENTS_DIR.mkdir(exist_ok=True)
+DOCUMENTS_DIR.mkdir(exist_ok=True, parents=True)
 VECTORSTORE_DIR.mkdir(exist_ok=True)
 HF_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 

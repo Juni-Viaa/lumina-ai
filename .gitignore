@@ -41,6 +41,12 @@ static/*
 backend/documents/*.pdf
 backend/documents/*.txt
 backend/documents/*.docx
+backend/documents/*.png
+backend/documents/*.jpg
+backend/documents/*.jpeg
+backend/documents/*.bmp
+backend/documents/*.tiff
+backend/documents/*.webp
 
 # _____________________________
 # Environment Variables

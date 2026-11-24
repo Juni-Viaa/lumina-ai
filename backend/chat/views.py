@@ -1,13 +1,17 @@
+import json
 import logging
 
 from django.db.models import Q, Prefetch
+from django.http import StreamingHttpResponse
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.models import Query, Answer, History, Conversation
-from ingest.retrieval import RagPipelineError, run_rag_query
+from core.renderers import ServerSentEventRenderer
+from rest_framework.renderers import JSONRenderer
+from ingest.retrieval import RagPipelineError, run_rag_query, stream_rag_query
 from .serializers import QuerySerializer, AnswerSerializer, HistorySerializer, ConversationSerializer, ConversationListSerializer
 
 logger = logging.getLogger(__name__)
@@ -85,10 +89,8 @@ class AskView(APIView):
         
         if conversation_id:
             try:
-                if request.user.role == "admin":
-                    conversation = Conversation.objects.get(id=conversation_id)
-                else:
-                    conversation = Conversation.objects.get(id=conversation_id, user=request.user)
+                # Admin juga hanya dapat mengakses conversation milik dirinya sendiri.
+                conversation = Conversation.objects.get(id=conversation_id, user=request.user)
             except Conversation.DoesNotExist:
                 return Response(
                     {"detail": "Percakapan tidak ditemukan atau Anda tidak memiliki akses."},
@@ -117,6 +119,71 @@ class AskView(APIView):
             result.data["conversation_id"] = conversation.id
         
         return result
+
+
+class AskStreamView(APIView):
+    """
+    POST /api/ask/stream/
+    Menerima pertanyaan dan mengembalikan Server-Sent Events (SSE) dengan
+    tahapan progres RAG (embedding, retrieval, reranking, generating),
+    streaming token teks jawaban, dan sumber referensi akhir.
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+    renderer_classes = [ServerSentEventRenderer, JSONRenderer]
+
+    def post(self, request, *args, **kwargs):
+        question = (request.data.get("question") or "").strip()
+        if not question:
+            return Response(
+                {"detail": "Pertanyaan wajib diisi."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if len(question) < 2 or len(question) > 2000:
+            return Response(
+                {"detail": "Pertanyaan harus antara 2 dan 2000 karakter."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        conversation_id = request.data.get("conversation_id")
+        if conversation_id:
+            try:
+                # Admin juga hanya dapat mengakses conversation milik dirinya sendiri.
+                conversation = Conversation.objects.get(id=conversation_id, user=request.user)
+            except Conversation.DoesNotExist:
+                return Response(
+                    {"detail": "Percakapan tidak ditemukan atau Anda tidak memiliki akses."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+        else:
+            conversation = Conversation.objects.create(
+                user=request.user,
+                title=_make_title(question),
+            )
+
+        query = Query.objects.create(
+            user=request.user,
+            conversation=conversation,
+            query_text=question,
+            query_title=_make_title(question),
+            status=Query.Status.PENDING,
+        )
+
+        def event_stream():
+            try:
+                for event in stream_rag_query(query.id, question):
+                    if event.get("type") == "done" and "data" in event:
+                        event["data"]["conversation_id"] = conversation.id
+                    yield f"data: {json.dumps(event)}\n\n"
+            except Exception as exc:
+                logger.exception("Error during AskStreamView execution")
+                _mark_query_failed_and_log(query)
+                yield f"data: {json.dumps({'type': 'error', 'message': GENERIC_ASK_ERROR})}\n\n"
+
+        response = StreamingHttpResponse(event_stream(), content_type="text/event-stream")
+        response["Cache-Control"] = "no-cache"
+        response["X-Accel-Buffering"] = "no"
+        return response
 
 
 class QueryViewSet(viewsets.ModelViewSet):
@@ -208,12 +275,13 @@ class ConversationViewSet(viewsets.ModelViewSet):
         return ConversationSerializer
 
     def get_queryset(self):
-        """Filter conversation berdasarkan user yang sedang login dan search query."""
+        """Filter conversation berdasarkan user yang sedang login dan search query.
+
+        Admin tidak dapat melihat conversation milik user lain — setiap user
+        (termasuk admin) hanya melihat conversation milik dirinya sendiri.
+        """
         user = self.request.user
-        if user.role == "admin":
-            qs = Conversation.objects.all()
-        else:
-            qs = Conversation.objects.filter(user=user)
+        qs = Conversation.objects.filter(user=user)
         
         q = self.request.query_params.get("q", "").strip()
         if q:

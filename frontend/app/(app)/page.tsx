@@ -3,21 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 
-import { api } from "@/lib/api";
+import { api, type StreamEventData } from "@/lib/api";
 import { getUser } from "@/lib/auth";
 import { Source } from "@/types/chat";
 import { ChatMessages } from "@/components/chat/ChatMessages";
 import { ChatInput } from "@/components/chat/ChatInput";
-
-interface AskResponse {
-    success: boolean;
-    query_id: number;
-    answer_id: number | null;
-    answer: string;
-    response_time_ms: number;
-    sources: Source[];
-    conversation_id?: number;
-}
 
 interface ChatMessage {
     id: number;
@@ -46,6 +36,10 @@ export default function DashboardPage() {
     const [question, setQuestion] = useState("");
     const [loading, setLoading] = useState(false);
     const [loadingConversation, setLoadingConversation] = useState(false);
+    const [currentStep, setCurrentStep] = useState<string>("embedding");
+    const [stepMessage, setStepMessage] = useState<string>("");
+    const [streamedAnswer, setStreamedAnswer] = useState<string>("");
+    const lastQuestionRef = useRef<string>("");
     const [documents, setDocuments] = useState<DocumentItem[]>([]);
     const [username, setUsername] = useState("Pengguna");
     const [error, setError] = useState<string | null>(null);
@@ -186,11 +180,16 @@ export default function DashboardPage() {
         }
     }, [messages, loading]);
 
-    async function sendMessage() {
-        const text = question.trim();
+    async function sendMessage(overrideText?: string) {
+        const text = (overrideText || question).trim();
         if (!text || loading) return;
 
+        lastQuestionRef.current = text;
         setError(null);
+        setCurrentStep("embedding");
+        setStepMessage("Menganalisis pertanyaan…");
+        setStreamedAnswer("");
+
         const userMessage: ChatMessage = {
             id: ++idCounter.current,
             role: "user",
@@ -211,30 +210,67 @@ export default function DashboardPage() {
                 payload.conversation_id = activeConversationId;
             }
 
-            const data = await api.post<AskResponse>("/ask/", payload);
+            let accumulatedText = "";
+            let finalSources: Source[] = [];
+            let finalResponseTime = 0;
+            let finalConvId: number | undefined;
 
-            if (data.conversation_id && !activeConversationId) {
-                activeConversationRef.current = data.conversation_id;
-                setActiveConversationId(data.conversation_id);
-                localStorage.setItem("activeConversationId", String(data.conversation_id));
-                window.dispatchEvent(
-                    new CustomEvent("lumina:conversation-created", {
-                        detail: {
-                            id: data.conversation_id,
-                            title: text.split(" ").slice(0, 8).join(" ") + (text.length > 8 ? "…" : ""),
+            await api.streamPost("/ask/stream/", {
+                body: payload,
+                onEvent: (event: StreamEventData) => {
+                    if (event.type === "step") {
+                        if (event.step) setCurrentStep(event.step);
+                        if (event.message) setStepMessage(event.message);
+                    } else if (event.type === "token" && event.token) {
+                        accumulatedText += event.token;
+                        setStreamedAnswer(accumulatedText);
+                    } else if (event.type === "done" && event.data) {
+                        const data = event.data;
+                        accumulatedText = data.answer || accumulatedText;
+                        finalSources = (data.sources as Source[]) || [];
+                        finalResponseTime = data.response_time_ms || 0;
+                        finalConvId = data.conversation_id;
+                    } else if (event.type === "error") {
+                        throw new Error(event.message || "Terjadi kesalahan saat memproses pertanyaan.");
+                    }
+                },
+                onDone: () => {
+                    if (finalConvId && !activeConversationId) {
+                        activeConversationRef.current = finalConvId;
+                        setActiveConversationId(finalConvId);
+                        localStorage.setItem("activeConversationId", String(finalConvId));
+                        window.dispatchEvent(
+                            new CustomEvent("lumina:conversation-created", {
+                                detail: {
+                                    id: finalConvId,
+                                    title: text.split(" ").slice(0, 8).join(" ") + (text.length > 8 ? "…" : ""),
+                                },
+                            })
+                        );
+                    }
+
+                    const assistantMessage: ChatMessage = {
+                        id: ++idCounter.current,
+                        role: "assistant",
+                        content: accumulatedText,
+                        sources: finalSources,
+                        responseTimeMs: finalResponseTime,
+                    };
+                    setMessages((prev) => [...prev, assistantMessage]);
+                    setStreamedAnswer("");
+                },
+                onError: (err) => {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: ++idCounter.current,
+                            role: "assistant",
+                            content: err.message || "Terjadi kesalahan saat memproses pertanyaan.",
                         },
-                    })
-                );
-            }
-
-            const assistantMessage: ChatMessage = {
-                id: ++idCounter.current,
-                role: "assistant",
-                content: data.answer,
-                sources: data.sources ?? [],
-                responseTimeMs: data.response_time_ms,
-            };
-            setMessages((prev) => [...prev, assistantMessage]);
+                    ]);
+                    setStreamedAnswer("");
+                },
+            });
         } catch (err) {
             setMessages((prev) => [
                 ...prev,
@@ -243,14 +279,21 @@ export default function DashboardPage() {
                     role: "assistant",
                     content:
                         err instanceof Error
-                            ? `⚠️ ${err.message}`
-                            : "⚠️ Terjadi kesalahan saat memproses pertanyaan.",
+                            ? err.message
+                            : "Terjadi kesalahan saat memproses pertanyaan.",
                 },
             ]);
+            setStreamedAnswer("");
         } finally {
             setLoading(false);
         }
     }
+
+    const handleRetry = useCallback(() => {
+        if (lastQuestionRef.current) {
+            void sendMessage(lastQuestionRef.current);
+        }
+    }, []);
 
     useEffect(() => {
         function handleNewChat(e: Event) {
@@ -323,6 +366,10 @@ export default function DashboardPage() {
                         messages={messages}
                         loading={loading}
                         username={username}
+                        currentStep={currentStep}
+                        stepMessage={stepMessage}
+                        streamedAnswer={streamedAnswer}
+                        onRetry={handleRetry}
                     />
                 )}
             </div>
