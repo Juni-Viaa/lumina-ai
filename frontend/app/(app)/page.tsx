@@ -8,6 +8,7 @@ import { getUser } from "@/lib/auth";
 import { Source } from "@/types/chat";
 import { ChatMessages } from "@/components/chat/ChatMessages";
 import { ChatInput } from "@/components/chat/ChatInput";
+import { SkeletonChatBubble } from "@/components/ui/Skeleton";
 
 interface ChatMessage {
     id: number;
@@ -87,6 +88,7 @@ export default function DashboardPage() {
         setQuestion("");
         setError(null);
         setLoading(false);
+        setLoadingConversation(true);
         idCounter.current = 0;
         if (textareaRef.current) {
             textareaRef.current.style.height = "auto";
@@ -295,27 +297,6 @@ export default function DashboardPage() {
         }
     }, []);
 
-    useEffect(() => {
-        function handleNewChat(e: Event) {
-            const detail = (e as CustomEvent<{ id: number }>).detail;
-            if (!detail?.id) return;
-            loadConversation(detail.id);
-        }
-
-        function handleOpenConversation(e: Event) {
-            const detail = (e as CustomEvent<{ id: number }>).detail;
-            if (!detail?.id) return;
-            loadConversation(detail.id);
-        }
-
-        window.addEventListener("lumina:new-chat", handleNewChat);
-        window.addEventListener("lumina:open-conversation", handleOpenConversation);
-        return () => {
-            window.removeEventListener("lumina:new-chat", handleNewChat);
-            window.removeEventListener("lumina:open-conversation", handleOpenConversation);
-        };
-    }, [loadConversation]);
-
     return (
         <div className="flex h-full flex-col overflow-hidden">
             {/* Screen reader live region */}
@@ -330,9 +311,10 @@ export default function DashboardPage() {
             {/* Chat area */}
             <div className="flex flex-1 flex-col overflow-y-auto">
                 {loadingConversation ? (
-                    <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-10 text-center">
-                        <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent dark:border-blue-400 dark:border-t-transparent" />
-                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Memuat percakapan...</p>
+                    <div className="mx-auto flex w-full max-w-[820px] flex-col gap-6 px-5 pt-6 pb-2.5">
+                        <SkeletonChatBubble role="assistant" />
+                        <SkeletonChatBubble role="user" />
+                        <SkeletonChatBubble role="assistant" />
                     </div>
                 ) : messages.length === 0 ? (
                     <div className="flex flex-1 flex-col items-center justify-center px-6 py-10 text-center">

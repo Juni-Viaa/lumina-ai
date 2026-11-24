@@ -8,6 +8,7 @@ import { GlassButton } from "@/components/ui/GlassButton";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { useToast } from "@/components/ui/Toast";
 import { useDocumentSSE } from "@/hooks/useSSE";
+import { SkeletonTableRow, SkeletonCard } from "@/components/ui/Skeleton";
 import DocumentStats from "./DocumentStats";
 import UploadModal from "./UploadModal";
 import DocumentDetailDrawer, {
@@ -456,17 +457,13 @@ export default function ManageSection() {
                             </thead>
                             <tbody className="divide-y divide-white/10 dark:divide-white/5">
                                 {loadingDocs ? (
-                                    <tr>
-                                        <td colSpan={8} className="p-12 text-center text-sm text-[#0f2436]/50 dark:text-[#f0f6fc]/50">
-                                            <div className="flex flex-col items-center gap-2">
-                                                <svg className="h-6 w-6 animate-spin text-primary" fill="none" viewBox="0 0 24 24">
-                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
-                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z" />
-                                                </svg>
-                                                <span>Memuat daftar dokumen...</span>
-                                            </div>
-                                        </td>
-                                    </tr>
+                                    <>
+                                        <SkeletonTableRow />
+                                        <SkeletonTableRow />
+                                        <SkeletonTableRow />
+                                        <SkeletonTableRow />
+                                        <SkeletonTableRow />
+                                    </>
                                 ) : sortedDocs.length === 0 ? (
                                     <tr>
                                         <td colSpan={8} className="p-14 text-center text-sm text-[#0f2436]/50 dark:text-[#f0f6fc]/50">
@@ -670,8 +667,10 @@ export default function ManageSection() {
                     {/* Mobile Card View (< md) */}
                     <div className="block md:hidden overflow-y-auto flex-1 p-3 space-y-3">
                         {loadingDocs ? (
-                            <div className="py-12 text-center text-xs text-[#0f2436]/50 dark:text-[#f0f6fc]/50">
-                                Memuat dokumen...
+                            <div className="space-y-3">
+                                <SkeletonCard />
+                                <SkeletonCard />
+                                <SkeletonCard />
                             </div>
                         ) : sortedDocs.length === 0 ? (
                             <div className="py-12 text-center text-xs text-[#0f2436]/50 dark:text-[#f0f6fc]/50">

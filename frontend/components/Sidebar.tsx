@@ -14,6 +14,7 @@ import { useToast } from "@/components/ui/Toast";
 import { NewChatButton } from "@/components/chat/NewChatButton";
 import { SidebarNav } from "@/components/chat/SidebarNav";
 import { SidebarSearch } from "@/components/chat/SidebarSearch";
+import { SkeletonSidebarItem } from "@/components/ui/Skeleton";
 
 interface SidebarProps {
     onClose: () => void;
@@ -102,6 +103,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
     const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [conversations, setConversations] = useState<ConversationItem[]>([]);
+    const [loadingConversations, setLoadingConversations] = useState(true);
     const activeConvStr = useSyncExternalStore(
         subscribeActiveConversation,
         getActiveConversationSnapshot,
@@ -174,6 +176,8 @@ export default function Sidebar({ onClose }: SidebarProps) {
                 }
             } catch {
                 if (!ignore) setConversations([]);
+            } finally {
+                if (!ignore) setLoadingConversations(false);
             }
         }
 
@@ -270,7 +274,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
     const handleDeleteConversation = useCallback((e: React.MouseEvent, id: number) => {
         e.stopPropagation();
         setConfirmDeleteId(id);
-    }, []);
+    }, [setConfirmDeleteId]);
 
     const confirmDelete = useCallback(async () => {
         if (!confirmDeleteId) return;
@@ -396,6 +400,18 @@ export default function Sidebar({ onClose }: SidebarProps) {
             );
         }
 
+        if (loadingConversations) {
+            return (
+                <div className="space-y-1.5 py-1">
+                    <SkeletonSidebarItem />
+                    <SkeletonSidebarItem />
+                    <SkeletonSidebarItem />
+                    <SkeletonSidebarItem />
+                    <SkeletonSidebarItem />
+                </div>
+            );
+        }
+
         // Group conversations by date
         const grouped: Record<string, ConversationItem[]> = {
             today: [],
@@ -515,7 +531,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
                 })}
             </div>
         );
-    }, [searchHistory, searchResults, conversations, activeConversationId, newConversationId, handleDeleteConversation, handleSelectConversation]);
+    }, [searchHistory, searchResults, conversations, activeConversationId, newConversationId, loadingConversations, handleDeleteConversation, handleSelectConversation]);
 
     return (
         <aside

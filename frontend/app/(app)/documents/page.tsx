@@ -7,6 +7,7 @@ import { GlassButton } from "@/components/ui/GlassButton";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { useToast } from "@/components/ui/Toast";
 import { useDocumentSSE } from "@/hooks/useSSE";
+import { Skeleton, SkeletonCard } from "@/components/ui/Skeleton";
 
 // ponytail: basic document management list. Upgrade to paginated table if user document count exceeds 50.
 export default function DocumentsPage() {
@@ -31,8 +32,22 @@ export default function DocumentsPage() {
     }, [toast]);
 
     useEffect(() => {
-        void loadDocs();
-    }, [loadDocs]);
+        let ignore = false;
+        async function fetchInitial() {
+            try {
+                const data = await documentsApi.list();
+                if (!ignore) setDocs(data.results);
+            } catch {
+                if (!ignore) toast.error("Gagal memuat daftar dokumen.");
+            } finally {
+                if (!ignore) setLoading(false);
+            }
+        }
+        void fetchInitial();
+        return () => {
+            ignore = true;
+        };
+    }, [toast]);
 
     // Real-time document updates via SSE
     useDocumentSSE({
@@ -111,13 +126,21 @@ export default function DocumentsPage() {
 
     if (loading) {
         return (
-            <div className="flex h-full items-center justify-center">
-                <div className="flex flex-col items-center gap-3 text-slate-500 dark:text-slate-400">
-                    <svg className="h-7 w-7 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
-                    <span className="text-sm font-medium">Memuat dokumen...</span>
+            <div className="mx-auto max-w-4xl p-6 space-y-6">
+                <div className="space-y-1.5">
+                    <Skeleton className="h-6 w-44" />
+                    <Skeleton className="h-4 w-72" />
+                </div>
+
+                <div className="glass-panel p-6 rounded-2xl">
+                    <Skeleton className="h-36 w-full rounded-2xl" />
+                </div>
+
+                <div className="space-y-3">
+                    <Skeleton className="h-5 w-36" />
+                    <SkeletonCard />
+                    <SkeletonCard />
+                    <SkeletonCard />
                 </div>
             </div>
         );
