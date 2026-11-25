@@ -147,6 +147,7 @@ class Query(models.Model):
         PENDING = "pending", "Pending"
         ANSWERED = "answered", "Answered"
         FAILED = "failed", "Failed"
+        STOPPED = "stopped", "Stopped"
 
     user = models.ForeignKey(
         User,

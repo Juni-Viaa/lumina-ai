@@ -4,7 +4,7 @@ from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from core.models import Conversation
+from core.models import Conversation, Query
 
 User = get_user_model()
 
@@ -108,3 +108,18 @@ class StreamViewsContentNegotiationTestCase(TestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response["Content-Type"], "text/event-stream")
+
+    def test_query_stop_action(self):
+        """Verifikasi bahwa POST /api/queries/{id}/stop/ menghentikan query pending."""
+        query = Query.objects.create(
+            user=self.user,
+            query_text="Pertanyaan yang akan distop",
+            query_title="Pertanyaan yang akan distop",
+            status=Query.Status.PENDING,
+        )
+        response = self.client.post(f"/api/queries/{query.id}/stop/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], Query.Status.STOPPED)
+        query.refresh_from_db()
+        self.assertEqual(query.status, Query.Status.STOPPED)
+        self.assertEqual(query.current_step, "stopped")

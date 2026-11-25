@@ -426,6 +426,11 @@ def run_rag_query(query_id: int, question: str, top_k: int | None = None) -> dic
     }
 
 
+def _is_query_stopped(query_id: int) -> bool:
+    # ponytail: direct DB check. Upgrade to Redis key if DB query per chunk adds noticeable latency.
+    return Query.objects.filter(pk=query_id, status=Query.Status.STOPPED).exists()
+
+
 def stream_rag_query(query_id: int, question: str, top_k: int | None = None):
     """
     Generator that executes the RAG pipeline step-by-step and yields progress events,
@@ -453,6 +458,9 @@ def stream_rag_query(query_id: int, question: str, top_k: int | None = None):
 
     start = time.time()
 
+    if _is_query_stopped(query_id):
+        return
+
     # 1. Embed query
     yield {"type": "step", "step": "embedding", "message": "Embedding query..."}
     query.current_step = "embedding"
@@ -463,6 +471,9 @@ def stream_rag_query(query_id: int, question: str, top_k: int | None = None):
     except Exception as exc:
         logger.exception("Embedding failed")
         yield {"type": "error", "message": "Gagal memproses embedding pertanyaan."}
+        return
+
+    if _is_query_stopped(query_id):
         return
 
     # 2. Hybrid search (Dense pgvector + Sparse PostgreSQL FTS) + RRF Fusion
@@ -485,6 +496,9 @@ def stream_rag_query(query_id: int, question: str, top_k: int | None = None):
         }
         return
 
+    if _is_query_stopped(query_id):
+        return
+
     # 3. Rerank candidate chunks with BGE Reranker v2 M3
     yield {"type": "step", "step": "reranking", "message": "Reranking context..."}
     query.current_step = "reranking"
@@ -500,10 +514,16 @@ def stream_rag_query(query_id: int, question: str, top_k: int | None = None):
         logger.exception("Reranker failed")
         chunks = candidate_chunks[:top_k]
 
+    if _is_query_stopped(query_id):
+        return
+
     # 4. Build context
     query.current_step = "context"
     query.save(update_fields=["current_step", "updated_at"])
     context = _format_context(chunks)
+
+    if _is_query_stopped(query_id):
+        return
 
     # 5. Generate answer with Gemini
     yield {"type": "step", "step": "generating", "message": "AI generating answer..."}
@@ -520,18 +540,30 @@ def stream_rag_query(query_id: int, question: str, top_k: int | None = None):
     answer_text = ""
     try:
         for chunk in chain.stream({"context": context, "question": question}):
+            if _is_query_stopped(query_id):
+                logger.info("Stream interrupted by stop for query %s", query_id)
+                return
             if chunk:
                 answer_text += chunk
                 yield {"type": "token", "token": chunk}
     except Exception as exc:
+        if _is_query_stopped(query_id):
+            return
         logger.warning("Streaming LLM failed, trying non-streaming invoke: %s", exc)
         try:
             answer_text = _invoke_llm_with_retry(chain, {"context": context, "question": question})
+            if _is_query_stopped(query_id):
+                return
             yield {"type": "token", "token": answer_text}
         except Exception as retry_exc:
+            if _is_query_stopped(query_id):
+                return
             logger.exception("LLM generation failed completely")
             yield {"type": "error", "message": "Gagal menghasilkan jawaban. Silakan coba lagi."}
             return
+
+    if _is_query_stopped(query_id):
+        return
 
     if not (answer_text or "").strip():
         yield {"type": "error", "message": "Jawaban tidak dapat dibuat untuk pertanyaan ini."}
@@ -556,6 +588,9 @@ def stream_rag_query(query_id: int, question: str, top_k: int | None = None):
         }
         for chunk in chunks
     ]
+
+    if _is_query_stopped(query_id):
+        return
 
     # 7. Persist answer + history
     answer_id = _save_answer(query, answer_text, sources)

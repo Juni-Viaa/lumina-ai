@@ -40,6 +40,17 @@ def _mark_query_failed_and_log(query: Query) -> None:
     History.objects.get_or_create(user=query.user, conversation=query.conversation, query=query)
 
 
+def _mark_query_stopped_and_log(query: Query) -> None:
+    """Tandai query dihentikan dan pastikan tetap tercatat di riwayat (history)."""
+    if query.pk is not None:
+        query.refresh_from_db(fields=["status"])
+        if query.status == Query.Status.PENDING:
+            query.status = Query.Status.STOPPED
+            query.current_step = "stopped"
+            query.save(update_fields=["status", "current_step", "updated_at"])
+    History.objects.get_or_create(user=query.user, conversation=query.conversation, query=query)
+
+
 def _execute_ask(query: Query, question: str) -> Response:
     """Jalankan pipeline RAG untuk `query`, lalu kembalikan response DRF."""
     try:
@@ -208,10 +219,14 @@ class AskStreamView(APIView):
 
         def event_stream():
             try:
+                yield f"data: {json.dumps({'type': 'init', 'query_id': query.id, 'conversation_id': conversation.id})}\n\n"
                 for event in stream_rag_query(query.id, question):
                     if event.get("type") == "done" and "data" in event:
                         event["data"]["conversation_id"] = conversation.id
                     yield f"data: {json.dumps(event)}\n\n"
+            except (GeneratorExit, ConnectionResetError, BrokenPipeError):
+                logger.info("Client disconnected from stream for query %s", query.id)
+                _mark_query_stopped_and_log(query)
             except Exception as exc:
                 logger.exception("Error during AskStreamView execution")
                 _mark_query_failed_and_log(query)
@@ -248,6 +263,20 @@ class QueryViewSet(viewsets.ModelViewSet):
         answers = Answer.objects.filter(query=query, deleted_at__isnull=True)
         serializer = AnswerSerializer(answers, many=True)
         return Response(serializer.data)
+
+    @action(detail=True, methods=["post"])
+    def stop(self, request, pk=None):
+        """
+        POST /api/queries/{id}/stop/
+        Menghentikan proses pipeline query yang sedang berjalan.
+        """
+        query = self.get_object()
+        if query.status == Query.Status.PENDING:
+            query.status = Query.Status.STOPPED
+            query.current_step = "stopped"
+            query.save(update_fields=["status", "current_step", "updated_at"])
+            History.objects.get_or_create(user=query.user, conversation=query.conversation, query=query)
+        return Response({"status": query.status, "query_id": query.id})
 
     @action(detail=True, methods=["post"])
     def ask(self, request, pk=None):
@@ -385,7 +414,9 @@ class ConversationViewSet(viewsets.ModelViewSet):
             return Response({"results": []})
         
         user = request.user
-        base_filter = Q() if user.role == "admin" else Q(user=user)
+        # Setiap user (termasuk admin) hanya dapat mencari conversation milik
+        # dirinya sendiri — konsisten dengan aturan akses pada endpoint list.
+        base_filter = Q(user=user)
         conversations = Conversation.objects.filter(
             base_filter &
             (Q(title__icontains=q) | Q(queries__query_text__icontains=q) | Q(queries__query_title__icontains=q))

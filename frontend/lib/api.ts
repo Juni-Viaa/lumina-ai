@@ -144,7 +144,9 @@ async function request<T>(
 }
 
 export interface StreamEventData {
-    type: "step" | "token" | "done" | "error" | string;
+    type: "step" | "token" | "done" | "error" | "init" | string;
+    query_id?: number;
+    conversation_id?: number;
     step?: string;
     message?: string;
     token?: string;
@@ -273,6 +275,10 @@ export const documentsApi = {
     upload: (formData: FormData) => api.uploadFile<{ message: string }>("/ingest/upload/", formData).then((res) => res),
     remove: (id: number) => api.delete<void>(`/documents/${id}/`).then(() => undefined),
     ingest: (id: number) => api.post<{ message: string; document_id: number; session_id: string; status: string }>(`/ingest/${id}/re-ingest/`).then((res) => res),
+};
+
+export const queriesApi = {
+    stop: (id: number) => api.post<{ status: string; query_id: number }>(`/queries/${id}/stop/`),
 };
 
 export const monitoringApi = {

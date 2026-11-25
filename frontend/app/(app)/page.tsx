@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 
-import { api, type StreamEventData } from "@/lib/api";
+import { api, queriesApi, type StreamEventData } from "@/lib/api";
 import { getUser } from "@/lib/auth";
 import { Source } from "@/types/chat";
 import { ChatMessages } from "@/components/chat/ChatMessages";
@@ -41,8 +41,11 @@ export default function DashboardPage() {
     const [stepMessage, setStepMessage] = useState<string>("");
     const [streamedAnswer, setStreamedAnswer] = useState<string>("");
     const lastQuestionRef = useRef<string>("");
+    const abortControllerRef = useRef<AbortController | null>(null);
+    const currentQueryIdRef = useRef<number | null>(null);
+    const [failedQuestion, setFailedQuestion] = useState<string | null>(null);
     const [documents, setDocuments] = useState<DocumentItem[]>([]);
-    const [username, setUsername] = useState("Pengguna");
+    const [username] = useState(() => getUser()?.username || "Pengguna");
     const [error, setError] = useState<string | null>(null);
     const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
     const activeConversationRef = useRef<number | null>(null);
@@ -59,25 +62,6 @@ export default function DashboardPage() {
         }
         window.addEventListener("keydown", handleGlobalKeyDown);
         return () => window.removeEventListener("keydown", handleGlobalKeyDown);
-    }, []);
-
-    useEffect(() => {
-        const user = getUser();
-        if (user?.username) setUsername(user.username);
-
-        const savedConvId = localStorage.getItem("activeConversationId");
-        if (savedConvId) {
-            const id = Number(savedConvId);
-            if (!isNaN(id) && id > 0) {
-                activeConversationRef.current = id;
-                setActiveConversationId(id);
-            }
-        }
-
-        api
-            .get<Paginated<DocumentItem>>("/documents/")
-            .then((data) => setDocuments(data.results))
-            .catch(() => setDocuments([]));
     }, []);
 
     const loadConversation = useCallback((id: number) => {
@@ -130,14 +114,13 @@ export default function DashboardPage() {
     }, []);
 
     useEffect(() => {
-        const user = getUser();
-        if (user?.username) setUsername(user.username);
-
         const savedConvId = localStorage.getItem("activeConversationId");
         if (savedConvId) {
             const id = Number(savedConvId);
             if (!isNaN(id) && id > 0) {
-                loadConversation(id);
+                queueMicrotask(() => {
+                    loadConversation(id);
+                });
             }
         }
 
@@ -182,11 +165,34 @@ export default function DashboardPage() {
         }
     }, [messages, loading]);
 
+    function handleStop() {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+            abortControllerRef.current = null;
+        }
+        if (currentQueryIdRef.current) {
+            void queriesApi.stop(currentQueryIdRef.current);
+            currentQueryIdRef.current = null;
+        }
+        setLoading(false);
+        setStreamedAnswer("");
+        setFailedQuestion(lastQuestionRef.current);
+        setMessages((prev) => [
+            ...prev,
+            {
+                id: ++idCounter.current,
+                role: "assistant",
+                content: "⚠️ Proses dihentikan oleh pengguna.",
+            },
+        ]);
+    }
+
     async function sendMessage(overrideText?: string) {
         const text = (overrideText || question).trim();
         if (!text || loading) return;
 
         lastQuestionRef.current = text;
+        setFailedQuestion(null);
         setError(null);
         setCurrentStep("embedding");
         setStepMessage("Menganalisis pertanyaan…");
@@ -205,6 +211,10 @@ export default function DashboardPage() {
             textareaRef.current.style.height = "auto";
         }
 
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
+        currentQueryIdRef.current = null;
+
         try {
             const payload: { question: string; conversation_id?: number } = { question: text };
 
@@ -219,8 +229,16 @@ export default function DashboardPage() {
 
             await api.streamPost("/ask/stream/", {
                 body: payload,
+                signal: controller.signal,
                 onEvent: (event: StreamEventData) => {
-                    if (event.type === "step") {
+                    if (event.type === "init") {
+                        if (event.query_id) {
+                            currentQueryIdRef.current = event.query_id;
+                        }
+                        if (event.conversation_id && !activeConversationId) {
+                            finalConvId = event.conversation_id;
+                        }
+                    } else if (event.type === "step") {
                         if (event.step) setCurrentStep(event.step);
                         if (event.message) setStepMessage(event.message);
                     } else if (event.type === "token" && event.token) {
@@ -260,42 +278,56 @@ export default function DashboardPage() {
                     };
                     setMessages((prev) => [...prev, assistantMessage]);
                     setStreamedAnswer("");
+                    setFailedQuestion(null);
                 },
                 onError: (err) => {
+                    if (controller.signal.aborted) {
+                        return;
+                    }
+                    setFailedQuestion(text);
+                    const errMsg = err.message.startsWith("⚠️")
+                        ? err.message
+                        : `⚠️ ${err.message || "Terjadi kesalahan saat memproses pertanyaan."}`;
                     setMessages((prev) => [
                         ...prev,
                         {
                             id: ++idCounter.current,
                             role: "assistant",
-                            content: err.message || "Terjadi kesalahan saat memproses pertanyaan.",
+                            content: errMsg,
                         },
                     ]);
                     setStreamedAnswer("");
                 },
             });
         } catch (err) {
+            if (controller.signal.aborted) {
+                return;
+            }
+            setFailedQuestion(text);
+            const errMsg = err instanceof Error ? err.message : "Terjadi kesalahan saat memproses pertanyaan.";
             setMessages((prev) => [
                 ...prev,
                 {
                     id: ++idCounter.current,
                     role: "assistant",
-                    content:
-                        err instanceof Error
-                            ? err.message
-                            : "Terjadi kesalahan saat memproses pertanyaan.",
+                    content: errMsg.startsWith("⚠️") ? errMsg : `⚠️ ${errMsg}`,
                 },
             ]);
             setStreamedAnswer("");
         } finally {
-            setLoading(false);
+            if (abortControllerRef.current === controller) {
+                abortControllerRef.current = null;
+                setLoading(false);
+            }
         }
     }
 
-    const handleRetry = useCallback(() => {
-        if (lastQuestionRef.current) {
-            void sendMessage(lastQuestionRef.current);
+    function handleRetry() {
+        const q = failedQuestion || lastQuestionRef.current;
+        if (q) {
+            void sendMessage(q);
         }
-    }, []);
+    }
 
     return (
         <div className="flex h-full flex-col overflow-hidden">
@@ -338,6 +370,9 @@ export default function DashboardPage() {
                                 question={question}
                                 setQuestion={setQuestion}
                                 onSubmit={sendMessage}
+                                onStop={handleStop}
+                                onRetry={handleRetry}
+                                hasRetry={Boolean(failedQuestion)}
                                 loading={loading}
                                 error={error}
                             />
@@ -363,6 +398,9 @@ export default function DashboardPage() {
                             question={question}
                             setQuestion={setQuestion}
                             onSubmit={sendMessage}
+                            onStop={handleStop}
+                            onRetry={handleRetry}
+                            hasRetry={Boolean(failedQuestion)}
                             loading={loading}
                             error={error}
                             showDisclaimer={false}
