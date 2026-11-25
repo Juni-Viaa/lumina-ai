@@ -69,19 +69,46 @@ Docker & Docker Compose (frontend, backend, PostgreSQL), Git/GitHub, VS Code.
 ```
 lumina/
 ├── backend/
-│   ├── core/                  # Django APP — models.py, migrations/ (data domain: dokumen, user, history, dll.)
-│   ├── lumina/                 # Django PROJECT config — settings.py, urls.py, asgi.py, wsgi.py
-│   └── manage.py
+│   ├── accounts/              # Django APP — autentikasi & manajemen user (custom User model berbasis email, role mahasiswa/admin)
+│   ├── chat/                  # Django APP — API chat & Q&A (AskView, AskStreamView, Query/Answer/History/Conversation ViewSets, SSE streaming)
+│   ├── core/                  # Django APP — model data tunggal untuk seluruh proyek (User, Document, Chunk, Query, Answer, History, IngestLog, Conversation) + migrations/
+│   ├── documents/             # Django APP — API dokumen (Document/Chunk/IngestLog ViewSets, ringkasan statistik, visual OCR/Vision, SSE stream status)
+│   ├── evaluation/            # Django APP — evaluasi RAG (golden_cases.json, manajemen tes evaluasi)
+│   ├── ingest/                # Django APP — pipeline RAG penuh: ingest (load → preprocess → chunk → embed → persist), retrieval (pgvector dense + PostgreSQL FTS sparse + RRF fusion), reranking (BGE), OCR, Vision, generasi jawaban Gemini
+│   ├── lumina/                # Django PROJECT config — settings.py, urls.py, asgi.py, wsgi.py, celery.py, middleware/ (bukan app Django)
+│   ├── models/                # (kosong) cadangan untuk cache model embedding / HuggingFace di host — tidak berisi kode Python
+│   ├── tests/                 # Tes integrasi backend (subfolder: integration/)
+│   ├── tools/                 # Alat bantu backend (security_tests.py)
+│   ├── vectorstore/           # (kosong) cadangan untuk vektor store terpisah — logika vektor saat ini ada di ingest/retrieval.py dan ingest/services.py
+│   ├── manage.py
+│   ├── Dockerfile
+│   ├── entrypoint.sh
+│   ├── requirements.txt
+│   ├── .env / .env.example
+│   └── .dockerignore
 ├── frontend/                # Next.js 16 App Router
 │   ├── app/                   # Routes & pages
+│   │   ├── (app)/             # Route group halaman utama: documents, upload, change-password (+ layout.tsx, page.tsx)
+│   │   ├── (auth)/            # Route group halaman autentikasi
+│   │   ├── layout.tsx
+│   │   ├── globals.css
+│   │   └── favicon.ico
+│   ├── components/            # Komponen React (ui/ — elemen dasar; chat/ — ChatBubble, ChatMessages, dll.; BottomNav, Markdown, Sidebar, ThemeProvider)
+│   ├── hooks/                 # Custom React hooks (useChatMessages, useSendMessage, useSSE, useConversations, useAutoScroll)
+│   ├── lib/                   # Layer API client terpusat (api.ts, auth.ts, utils.ts) — semua panggilan backend lewat sini
 │   ├── public/
+│   ├── tests/                 # Tes frontend (phase1-check s.d. phase5-check, markdown-inline-check, skeleton-check)
+│   ├── types/                 # Definisi tipe TypeScript (chat.ts)
 │   ├── AGENTS.md              # Aturan agent khusus scope frontend (lebih spesifik dari file ini)
-│   └── CLAUDE.md              # (jika ada) — instruksi tambahan untuk Claude Code di scope frontend
+│   └── CLAUDE.md              # Referensi ke AGENTS.md
+├── models/                    # (kosong) cadangan cache model di host — tidak berisi kode Python, ada di .gitignore
 ├── docker-compose.yml
 └── AGENTS.md                # File ini — berlaku untuk seluruh repo
 ```
 
-> **Penting:** `backend/lumina/` bukan app RAG — itu folder config project Django (`settings.py`, `urls.py`, dsb.), namanya sama dengan nama project. `backend/core/` adalah app Django tempat model data didefinisikan. Jangan tertukar saat menambahkan app baru — app RAG baru (ingestion, retrieval, generation, evaluation) sebaiknya dibuat sebagai app terpisah, bukan ditumpuk di `core/` atau `lumina/`.
+> **Penting:** `backend/lumina/` bukan app RAG — itu folder config project Django (`settings.py`, `urls.py`, `asgi.py`, `wsgi.py`, `celery.py`, `middleware/`), namanya sama dengan nama project. `backend/core/` adalah app Django tempat **semua** model data didefinisikan (User, Document, Chunk, Query, Answer, History, IngestLog, Conversation). App lain (`accounts`, `chat`, `documents`, `ingest`, `evaluation`) hanya berisi `views.py`, `serializers.py`, `urls.py` — model diimpor dari `core.models`. Jangan menambahkan model baru ke `core/` tanpa memikirkan dampak lintas app, dan jangan menumpuk logic RAG di `core/` maupun `lumina/`.
+>
+> Folder `backend/models/` dan `backend/vectorstore/` saat ini kosong — cadangan untuk cache model dan vektor store terpisah, masing-masing sudah di-`.gitignore`. Jangan membuat app Django baru di dalam keduanya tanpa memeriksa apakah logic tersebut lebih pas di `ingest/`.
 
 > **Catatan hierarki:** Jika ada `AGENTS.md` di dalam subfolder (mis. `frontend/AGENTS.md`), aturan di subfolder tersebut **lebih spesifik dan menang** untuk file-file di dalam scope-nya, tetapi tidak boleh bertentangan dengan aturan keamanan/arsitektur inti di file root ini.
 
@@ -109,8 +136,12 @@ lumina/
 ### Backend (Django/Python)
 - Ikuti PEP 8. Gunakan type hints pada fungsi baru.
 - Struktur app Django modular: pisahkan logic RAG (ingestion, retrieval, generation, evaluation) ke dalam app Django terpisah — jangan ditumpuk di `core` (app model data) maupun di `lumina` (folder config project, bukan app).
+- **Semua model menggunakan soft delete** melalui field `deleted_at` (nullable). Jangan gunakan `.delete()` hard-delete kecuali dengan alasan yang sangat kuat — selalu filter `deleted_at__isnull=True` dalam query.
+- Setiap model menentukan `db_table` secara eksplisit di `class Meta` (contoh: `users`, `documents`, `chunks`, `queries`, `answers`, `histories`, `ingest_logs`, `conversations`). Jangan mengandalkan nama tabel default Django.
+- `AUTH_USER_MODEL = "core.User"` — custom user berbasis email (`USERNAME_FIELD = "email"`) dengan role `mahasiswa` / `admin`. Jangan membuat model User di app lain.
 - Gunakan Django REST Framework serializers untuk validasi input/output API — jangan mem-bypass serializer untuk parsing manual di view.
 - Query PostgreSQL/pgvector lewat ORM Django atau raw SQL yang terdokumentasi jelas jika ORM tidak mendukung operasi vector tertentu.
+- **Server-Sent Events (SSE)** digunakan untuk streaming real-time: `AskStreamView` (POST /api/ask/stream/) untuk progres RAG dan `DocumentStreamView` (GET /api/documents/stream/) untuk status dokumen. Jangan mengganti pola ini dengan polling tanpa evaluasi dampak ke frontend.
 - Async/background job (ingestion dokumen besar, OCR, evaluasi) sebaiknya tidak memblokir request-response cycle utama — gunakan task queue jika tersedia (mis. Celery) atau pola async view.
 
 ### Frontend (Next.js/TypeScript)

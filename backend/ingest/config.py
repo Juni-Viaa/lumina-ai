@@ -11,11 +11,9 @@ from django.conf import settings
 BASE_DIR = Path(settings.BASE_DIR)
 MEDIA_ROOT = settings.MEDIA_ROOT
 DOCUMENTS_DIR = MEDIA_ROOT / "documents"
-VECTORSTORE_DIR = BASE_DIR / "vectorstore"
 HF_CACHE_DIR = BASE_DIR / "hf_cache"
 
 DOCUMENTS_DIR.mkdir(exist_ok=True, parents=True)
-VECTORSTORE_DIR.mkdir(exist_ok=True)
 HF_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── Embedding Model Cache ──────────────────────────────────────────────────────
@@ -47,7 +45,7 @@ RRF_K = int(os.getenv("RRF_K", "60"))
 RERANKER_MODEL = os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-v2-m3")
 RERANKER_DEVICE = os.getenv("RERANKER_DEVICE", "cpu")
 RERANKER_TIMEOUT_SECONDS = float(os.getenv("RERANKER_TIMEOUT_SECONDS", "5.0"))
-RERANKER_ENABLED = os.getenv("RERANKER_ENABLED", "true").lower() in ("true", "1", "yes")
+RERANKER_ENABLED = os.getenv("RERANKER_ENABLED", "false").lower() in ("true", "1", "yes")
 
 # ── Gemini LLM ─────────────────────────────────────────────────────────────────
 GEMINI_MODEL = "gemini-3.1-flash-lite"

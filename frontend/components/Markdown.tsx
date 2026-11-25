@@ -78,6 +78,7 @@ function isTableSeparatorRow(cells: string[]): boolean {
 function renderBlocks(lines: string[], keyPrefix: string): ReactNode[] {
     const nodes: ReactNode[] = [];
     let i = 0;
+    let listCounter = 1;
 
     while (i < lines.length) {
         const raw = lines[i];
@@ -176,6 +177,7 @@ function renderBlocks(lines: string[], keyPrefix: string): ReactNode[] {
         // ── Ordered list ────────────────────────────────────────────
         if (/^\s*\d+[.)]\s+/.test(trimmed)) {
             const items: ReactNode[] = [];
+            const start = listCounter;
             while (i < lines.length) {
                 const m = lines[i].trim().match(/^\s*\d+[.)]\s+(.*)$/);
                 if (!m) break;
@@ -184,9 +186,14 @@ function renderBlocks(lines: string[], keyPrefix: string): ReactNode[] {
                         {renderInline(m[1], `${key}-li${i}`)}
                     </li>,
                 );
+                listCounter++;
                 i++;
             }
-            nodes.push(<ol key={key} className="my-2 space-y-1.5">{items}</ol>);
+            nodes.push(
+                <ol key={key} className="my-2 space-y-1.5" start={start}>
+                    {items}
+                </ol>,
+            );
             continue;
         }
 
