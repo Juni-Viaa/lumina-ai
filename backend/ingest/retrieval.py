@@ -23,6 +23,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
 from core.models import Answer, Chunk, Document as DocumentModel, History, Query
+from monitoring.services import estimate_tokens, record_request_log, record_token_usage
 from . import config
 from .reranker import rerank_chunks
 from .services import get_embeddings
@@ -401,6 +402,20 @@ def run_rag_query(query_id: int, question: str, top_k: int | None = None) -> dic
     query.current_step = "done"
     query.save(update_fields=["status", "response_time_ms", "current_step", "updated_at"])
 
+    # 8. Record token usage & request log
+    input_tokens = estimate_tokens(f"{config.RAG_SYSTEM_PROMPT}\n{context}\n{question}")
+    output_tokens = estimate_tokens(answer_text)
+    record_token_usage(query.user, input_tokens=input_tokens, output_tokens=output_tokens)
+    record_request_log(
+        user=query.user,
+        endpoint="/api/ask/",
+        query=query,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        status_code=200,
+        response_time_ms=elapsed,
+    )
+
     return {
         "success": True,
         "query_id": query_id,
@@ -548,6 +563,20 @@ def stream_rag_query(query_id: int, question: str, top_k: int | None = None):
     query.response_time_ms = elapsed
     query.current_step = "done"
     query.save(update_fields=["status", "response_time_ms", "current_step", "updated_at"])
+
+    # 8. Record token usage & request log
+    input_tokens = estimate_tokens(f"{config.RAG_SYSTEM_PROMPT}\n{context}\n{question}")
+    output_tokens = estimate_tokens(answer_text)
+    record_token_usage(query.user, input_tokens=input_tokens, output_tokens=output_tokens)
+    record_request_log(
+        user=query.user,
+        endpoint="/api/ask/stream/",
+        query=query,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        status_code=200,
+        response_time_ms=elapsed,
+    )
 
     yield {
         "type": "done",

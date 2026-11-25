@@ -5,6 +5,7 @@
  */
 
 import { clearAuth, getCsrfToken } from "./auth";
+import type { ChartsData, PaginatedQueryLogs, TokenSummary } from "@/types/monitoring";
 
 const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
@@ -272,6 +273,35 @@ export const documentsApi = {
     upload: (formData: FormData) => api.uploadFile<{ message: string }>("/ingest/upload/", formData).then((res) => res),
     remove: (id: number) => api.delete<void>(`/documents/${id}/`).then(() => undefined),
     ingest: (id: number) => api.post<{ message: string; document_id: number; session_id: string; status: string }>(`/ingest/${id}/re-ingest/`).then((res) => res),
+};
+
+export const monitoringApi = {
+    getSummary: (params?: { date?: string; start_date?: string; end_date?: string; user_id?: number }) => {
+        const query = new URLSearchParams();
+        if (params?.date) query.set("date", params.date);
+        if (params?.start_date) query.set("start_date", params.start_date);
+        if (params?.end_date) query.set("end_date", params.end_date);
+        if (params?.user_id) query.set("user_id", String(params.user_id));
+        const qs = query.toString();
+        return api.get<TokenSummary>(`/monitoring/summary/${qs ? `?${qs}` : ""}`);
+    },
+    getCharts: (params?: { days?: number; user_id?: number }) => {
+        const query = new URLSearchParams();
+        if (params?.days) query.set("days", String(params.days));
+        if (params?.user_id) query.set("user_id", String(params.user_id));
+        const qs = query.toString();
+        return api.get<ChartsData>(`/monitoring/charts/${qs ? `?${qs}` : ""}`);
+    },
+    getQueryLogs: (params?: { page?: number; user_id?: number; status_code?: number; date?: string }) => {
+        const query = new URLSearchParams();
+        if (params?.page) query.set("page", String(params.page));
+        if (params?.user_id) query.set("user_id", String(params.user_id));
+        if (params?.status_code) query.set("status_code", String(params.status_code));
+        if (params?.date) query.set("date", params.date);
+        const qs = query.toString();
+        return api.get<PaginatedQueryLogs>(`/monitoring/query-logs/${qs ? `?${qs}` : ""}`);
+    },
+    getQueryLogsStreamUrl: () => api.getEventSourceUrl("/monitoring/query-logs/stream/"),
 };
 
 export type { RequestOptions };

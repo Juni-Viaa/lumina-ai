@@ -33,6 +33,7 @@ urlpatterns = [
     path("api/", include("documents.urls")),
     path("api/", include("chat.urls")),
     path("api/", include("ingest.urls")),
+    path("api/", include("monitoring.urls")),
 ]
 
 # Serve media files during development

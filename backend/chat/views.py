@@ -12,6 +12,7 @@ from core.models import Query, Answer, History, Conversation
 from core.renderers import ServerSentEventRenderer
 from rest_framework.renderers import JSONRenderer
 from ingest.retrieval import RagPipelineError, run_rag_query, stream_rag_query
+from monitoring.services import check_request_limits, estimate_tokens, record_request_log
 from .serializers import QuerySerializer, AnswerSerializer, HistorySerializer, ConversationSerializer, ConversationListSerializer
 
 logger = logging.getLogger(__name__)
@@ -84,6 +85,24 @@ class AskView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # Rate limiting & token quota check
+        est_tokens = estimate_tokens(question)
+        allowed, err_msg, status_code, retry_after = check_request_limits(
+            request.user, estimated_input_tokens=est_tokens
+        )
+        if not allowed:
+            record_request_log(
+                user=request.user,
+                endpoint=request.path,
+                input_tokens=est_tokens,
+                status_code=status_code,
+                error_message=err_msg,
+            )
+            response = Response({"detail": err_msg}, status=status_code)
+            if retry_after > 0:
+                response["Retry-After"] = str(retry_after)
+            return response
+
         # 1. Get conversation_id from request (if provided) or create a new conversation
         conversation_id = request.data.get("conversation_id")
         
@@ -144,6 +163,24 @@ class AskStreamView(APIView):
                 {"detail": "Pertanyaan harus antara 2 dan 2000 karakter."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        # Rate limiting & token quota check
+        est_tokens = estimate_tokens(question)
+        allowed, err_msg, status_code, retry_after = check_request_limits(
+            request.user, estimated_input_tokens=est_tokens
+        )
+        if not allowed:
+            record_request_log(
+                user=request.user,
+                endpoint=request.path,
+                input_tokens=est_tokens,
+                status_code=status_code,
+                error_message=err_msg,
+            )
+            response = Response({"detail": err_msg}, status=status_code)
+            if retry_after > 0:
+                response["Retry-After"] = str(retry_after)
+            return response
 
         conversation_id = request.data.get("conversation_id")
         if conversation_id:
