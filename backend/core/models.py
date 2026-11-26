@@ -29,6 +29,7 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     class Role(models.TextChoices):
         MAHASISWA = "mahasiswa", "Mahasiswa"
+        DOSEN = "dosen", "Dosen"
         ADMIN = "admin", "Admin"
 
     username = models.CharField(max_length=255, unique=True)

@@ -660,7 +660,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
                                 {user?.username || "Pengguna Lumina"}
                             </p>
                             <p className="text-[10px] text-slate-400 dark:text-slate-500 capitalize">
-                                Role: {user?.role || "Member"} {isAdmin && "• Staff Admin"}
+                                Role: {user?.role || "Member"}
                             </p>
                         </div>
 
@@ -808,7 +808,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
                             {user?.username || "Pengguna"}
                         </span>
                         <span className="block truncate text-[10px] text-slate-600 dark:text-slate-400 capitalize">
-                            {user?.role || "Member"} {isAdmin && "• Admin"}
+                            {user?.role || "Member"}
                         </span>
                     </div>
 

@@ -7,9 +7,9 @@ import ManageSection from "./_components/ManageSection";
 // ponytail: static role check against current session; upgrade to capability-based permission guards if granular role permissions are added.
 export default function UploadPage() {
     const user = getUser();
-    const isAdmin = user?.role === "admin" && user.is_staff === true;
+    const canAccess = user?.role === "admin" || user?.role === "dosen";
 
-    if (!isAdmin) {
+    if (!canAccess) {
         return (
             <div className="flex h-full items-center justify-center p-6 text-center">
                 <div className="glass-panel max-w-md p-8 rounded-3xl border shadow-xl flex flex-col items-center">
@@ -22,7 +22,7 @@ export default function UploadPage() {
                         Akses Terbatas
                     </h2>
                     <p className="text-xs text-[#0f2436]/60 dark:text-[#f0f6fc]/60 mb-6 leading-relaxed">
-                        Halaman manajemen dokumen dan upload pipeline hanya dapat diakses oleh administrator sistem Lumina.
+                        Halaman manajemen dokumen dan upload pipeline hanya dapat diakses oleh dosen dan administrator sistem Lumina.
                     </p>
                     <Link
                         href="/"

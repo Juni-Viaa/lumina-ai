@@ -36,14 +36,17 @@ class IngestStatusView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, document_id: int, *args, **kwargs):
-        if not (request.user.is_authenticated and request.user.role == "admin"):
+        if not (request.user.is_authenticated and request.user.role in ("admin", "dosen")):
             return Response(
                 {"detail": "Anda tidak memiliki izin untuk melihat status ingest."},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
         try:
-            document = DocumentModel.objects.get(pk=document_id)
+            queryset = DocumentModel.objects.all()
+            if request.user.role != "admin":
+                queryset = queryset.filter(user=request.user)
+            document = queryset.get(pk=document_id)
         except DocumentModel.DoesNotExist:
             return Response(
                 {"detail": "Dokumen tidak ditemukan."},
@@ -89,14 +92,17 @@ class IngestViewSet(ViewSet):
     @action(detail=True, methods=["post"], url_path="re-ingest")
     def re_ingest(self, request, pk=None):
         """Trigger re-ingest untuk dokumen yang sudah ada."""
-        if not (request.user.is_authenticated and request.user.role == "admin"):
+        if not (request.user.is_authenticated and request.user.role in ("admin", "dosen")):
             return Response(
                 {"detail": "Anda tidak memiliki izin untuk melakukan re-ingest."},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
         try:
-            document = DocumentModel.objects.get(pk=pk)
+            queryset = DocumentModel.objects.all()
+            if request.user.role != "admin":
+                queryset = queryset.filter(user=request.user)
+            document = queryset.get(pk=pk)
         except DocumentModel.DoesNotExist:
             return Response(
                 {"detail": "Dokumen tidak ditemukan."},
@@ -145,7 +151,7 @@ class IngestUploadView(APIView):
     throttle_scope = "upload"
 
     def post(self, request, *args, **kwargs):
-        if not (request.user.is_authenticated and request.user.role == "admin"):
+        if not (request.user.is_authenticated and request.user.role in ("admin", "dosen")):
             return Response(
                 {"detail": "Anda tidak memiliki izin untuk mengunggah dokumen."},
                 status=status.HTTP_403_FORBIDDEN,

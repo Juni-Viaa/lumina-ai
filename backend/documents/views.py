@@ -78,6 +78,27 @@ class DocumentViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK,
         )
 
+    @action(detail=False, methods=["get"], url_path="knowledge-available")
+    def knowledge_available(self, request):
+        """
+        Cek apakah knowledge base tersedia untuk user yang sedang login.
+
+        Knowledge base tersedia jika ada minimal satu dokumen dengan status
+        `indexed` yang dapat diakses user: dokumen milik user sendiri ATAU
+        dokumen yang diunggah oleh admin (dipakai sebagai knowledge base bersama).
+        """
+        user = request.user
+        qs = Document.objects.filter(
+            deleted_at__isnull=True,
+            status__in=[
+                Document.Status.INDEXED,
+                "completed",
+                "success",
+            ],
+        ).filter(Q(user=user) | Q(user__role="admin"))
+
+        return Response({"available": qs.exists()}, status=status.HTTP_200_OK)
+
     @action(detail=True, methods=["get"])
     def chunks(self, request, pk=None):
         """Mengembalikan daftar chunk untuk dokumen tertentu."""

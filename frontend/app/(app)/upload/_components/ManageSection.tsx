@@ -33,7 +33,7 @@ interface SummaryData {
 export default function ManageSection() {
     const router = useRouter();
     const user = getUser();
-    const isAdmin = user?.role === "admin" && user.is_staff === true;
+    const isAdmin = user?.role === "admin" || user?.role === "dosen";
 
     const [docs, setDocs] = useState<DocumentItem[]>([]);
     const [loadingDocs, setLoadingDocs] = useState(true);
@@ -115,14 +115,16 @@ export default function ManageSection() {
         }
     }, [statusFilter, typeFilter, search]);
 
+    const isAdminOnly = user?.role === "admin";
     const fetchSummary = useCallback(async () => {
+        if (!isAdminOnly) return;
         try {
             const data = await api.get<SummaryData>("/documents/summary/");
             setStats(data);
         } catch {
             setStats({ total: 0, indexed: 0, processing: 0, failed: 0 });
         }
-    }, []);
+    }, [isAdminOnly]);
 
     // Initial load & filter change
     useEffect(() => {

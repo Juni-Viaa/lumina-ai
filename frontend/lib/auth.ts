@@ -14,7 +14,7 @@ export interface AuthUser {
     id: number;
     email: string;
     username: string;
-    role: "mahasiswa" | "admin";
+    role: "mahasiswa" | "dosen" | "admin";
     is_staff: boolean;
     created_at: string;
     session_expires_at?: string;

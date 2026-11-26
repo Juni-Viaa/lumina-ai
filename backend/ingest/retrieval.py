@@ -61,7 +61,7 @@ def _similarity_search(
     qs = Chunk.objects.filter(embedding__isnull=False, deleted_at__isnull=True).select_related("document")
     if user_id is not None:
         qs = qs.filter(
-            Q(document__user_id=user_id) | Q(document__user__is_staff=True)
+            Q(document__user_id=user_id) | Q(document__user__role="admin")
         )
     qs = (
         qs.filter(document__status=DocumentModel.Status.INDEXED, document__deleted_at__isnull=True)
@@ -92,7 +92,7 @@ def _sparse_search(
     )
     if user_id is not None:
         qs = qs.filter(
-            Q(document__user_id=user_id) | Q(document__user__is_staff=True)
+            Q(document__user_id=user_id) | Q(document__user__role="admin")
         )
     qs = (
         qs.filter(
@@ -164,7 +164,7 @@ def _expand_visual_pairs(chunks: list[Chunk], user_id: int) -> list[Chunk]:
             metadata__source_type=counterpart,
             deleted_at__isnull=True,
         ).filter(
-            Q(document__user_id=user_id) | Q(document__user__is_staff=True)
+            Q(document__user_id=user_id) | Q(document__user__role="admin")
         ).select_related("document")[:2]
         for sibling in siblings:
             if sibling.id not in seen_ids:

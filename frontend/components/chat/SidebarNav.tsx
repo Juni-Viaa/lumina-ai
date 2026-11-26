@@ -11,6 +11,8 @@ interface SidebarNavProps {
 export function SidebarNav({ pathname, onClose }: SidebarNavProps) {
     const user = getUser();
     const isAdmin = user?.role === "admin" || user?.is_staff === true;
+    const isDosen = user?.role === "dosen";
+    const canUpload = isAdmin || isDosen;
 
     return (
         <div className="px-3 py-1 space-y-1 shrink-0">
@@ -31,6 +33,7 @@ export function SidebarNav({ pathname, onClose }: SidebarNavProps) {
                 <span>Tanya Jawab Dokumen</span>
             </Link>
 
+            {canUpload && (
             <Link
                 href="/upload"
                 onClick={onClose}
@@ -45,6 +48,7 @@ export function SidebarNav({ pathname, onClose }: SidebarNavProps) {
                 </svg>
                 <span>Kelola Dokumen</span>
             </Link>
+            )}
 
             {isAdmin && (
                 <Link

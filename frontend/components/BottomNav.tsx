@@ -8,7 +8,9 @@ import { getUser } from "@/lib/auth";
 export default function BottomNav() {
     const pathname = usePathname();
     const user = getUser();
-    const isAdmin = user?.role === "admin" && user?.is_staff === true;
+    const isAdmin = user?.role === "admin" || user?.is_staff === true;
+    const isDosen = user?.role === "dosen";
+    const canUpload = isAdmin || isDosen;
 
     const isActive = (path: string) => {
         if (path === "/") return pathname === "/";
@@ -48,8 +50,8 @@ export default function BottomNav() {
                 <span className="text-[11px]">Chat</span>
             </Link>
 
-            {/* Upload — admin only */}
-            {isAdmin && (
+            {/* Upload — admin & dosen */}
+            {canUpload && (
                 <Link
                     href="/upload"
                     className={`flex flex-col items-center gap-1 rounded-xl px-4 py-1.5 transition-all ${

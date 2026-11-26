@@ -45,6 +45,7 @@ export default function DashboardPage() {
     const currentQueryIdRef = useRef<number | null>(null);
     const [failedQuestion, setFailedQuestion] = useState<string | null>(null);
     const [documents, setDocuments] = useState<DocumentItem[]>([]);
+    const [knowledgeAvailable, setKnowledgeAvailable] = useState(false);
     const [username] = useState(() => getUser()?.username || "Pengguna");
     const [error, setError] = useState<string | null>(null);
     const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
@@ -128,6 +129,11 @@ export default function DashboardPage() {
             .get<Paginated<DocumentItem>>("/documents/")
             .then((data) => setDocuments(data.results))
             .catch(() => setDocuments([]));
+
+        api
+            .get<{ available: boolean }>("/documents/knowledge-available/")
+            .then((data) => setKnowledgeAvailable(data.available))
+            .catch(() => setKnowledgeAvailable(false));
     }, [loadConversation]);
 
     useEffect(() => {
@@ -360,7 +366,7 @@ export default function DashboardPage() {
                             Asisten akademikmu. Ajukan pertanyaan dan aku akan menjawabnya sesuai pengetahuanku.
                         </p>
 
-                        {documents.length === 0 && (
+                        {documents.length === 0 && !knowledgeAvailable && (
                             <p className="mb-6 max-w-md text-xs text-[#3b82f6]/70 dark:text-[#60a5fa]/70">
                                 Belum ada dokumen terindeks. Hubungi admin untuk mengunggah dokumen sebelum mengajukan pertanyaan.
                             </p>
