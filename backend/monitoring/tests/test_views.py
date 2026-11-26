@@ -75,3 +75,19 @@ class MonitoringApiEndpointsTest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         results = response.data.get("results", response.data)
         self.assertGreaterEqual(len(results), 1)
+
+    def test_my_summary_success_for_authenticated_user(self):
+        self.client.force_authenticate(user=self.mahasiswa)
+        response = self.client.get("/api/monitoring/my-summary/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.data
+        self.assertEqual(data["input_tokens"], 1500)
+        self.assertEqual(data["output_tokens"], 800)
+        self.assertEqual(data["total_tokens"], 2300)
+        self.assertEqual(data["request_count"], 3)
+        self.assertIn("limits", data)
+        self.assertIn("requests_per_minute", data["limits"])
+
+    def test_my_summary_unauthenticated_forbidden(self):
+        response = self.client.get("/api/monitoring/my-summary/")
+        self.assertIn(response.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])

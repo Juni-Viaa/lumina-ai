@@ -5,7 +5,7 @@
  */
 
 import { clearAuth, getCsrfToken } from "./auth";
-import type { ChartsData, PaginatedQueryLogs, TokenSummary } from "@/types/monitoring";
+import type { ChartsData, MyTokenUsage, PaginatedQueryLogs, TokenSummary } from "@/types/monitoring";
 
 const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
@@ -282,6 +282,7 @@ export const queriesApi = {
 };
 
 export const monitoringApi = {
+    getMySummary: () => api.get<MyTokenUsage>("/monitoring/my-summary/"),
     getSummary: (params?: { date?: string; start_date?: string; end_date?: string; user_id?: number }) => {
         const query = new URLSearchParams();
         if (params?.date) query.set("date", params.date);

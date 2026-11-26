@@ -8,6 +8,17 @@ export interface MonitoringLimits {
     daily_token_limit_output: number;
 }
 
+export interface MyTokenUsage {
+    date: string;
+    input_tokens: number;
+    output_tokens: number;
+    total_tokens: number;
+    request_count: number;
+    input_percentage: number;
+    output_percentage: number;
+    limits: MonitoringLimits;
+}
+
 export interface UserTokenSummary {
     user_id: number;
     username: string;

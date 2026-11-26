@@ -5,11 +5,12 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 
-import { api } from "@/lib/api";
+import { api, monitoringApi } from "@/lib/api";
 import { getUser, logout } from "@/lib/auth";
 import { useTheme } from "@/components/ThemeProvider";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { useToast } from "@/components/ui/Toast";
+import type { MyTokenUsage } from "@/types/monitoring";
 
 import { NewChatButton } from "@/components/chat/NewChatButton";
 import { SidebarNav } from "@/components/chat/SidebarNav";
@@ -95,11 +96,13 @@ export default function Sidebar({ onClose }: SidebarProps) {
     const router = useRouter();
     const pathname = usePathname();
     const user = getUser();
-    const isAdmin = user?.role === "admin" && user?.is_staff === true;
+    const isAdmin = user?.role === "admin" || user?.is_staff === true;
     const { setTheme } = useTheme();
     const toast = useToast();
 
     const [accountOpen, setAccountOpen] = useState(false);
+    const [myUsage, setMyUsage] = useState<MyTokenUsage | null>(null);
+    const [loadingUsage, setLoadingUsage] = useState(false);
     const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [conversations, setConversations] = useState<ConversationItem[]>([]);
@@ -234,6 +237,26 @@ export default function Sidebar({ onClose }: SidebarProps) {
                 document.removeEventListener("keydown", handleKeyDown);
             };
         }
+    }, [accountOpen]);
+
+    // Fetch user token usage when account menu is opened
+    useEffect(() => {
+        if (!accountOpen) return;
+        let ignore = false;
+        setLoadingUsage(true);
+        // ponytail: self daily usage fetched on demand when opening popover; can sync with sse later
+        monitoringApi
+            .getMySummary()
+            .then((data) => {
+                if (!ignore) setMyUsage(data);
+            })
+            .catch(() => {})
+            .finally(() => {
+                if (!ignore) setLoadingUsage(false);
+            });
+        return () => {
+            ignore = true;
+        };
     }, [accountOpen]);
 
     const handleNewChat = useCallback(() => {
@@ -662,6 +685,69 @@ export default function Sidebar({ onClose }: SidebarProps) {
                                 </svg>
                                 <span>Keluar</span>
                             </button>
+                        </div>
+
+                        {/* Penggunaan & Batasan Token (Visible untuk seluruh user) */}
+                        <div className="px-3 py-2 border-t border-slate-100 dark:border-slate-800/80">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                                    Penggunaan Token
+                                </span>
+                                <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                                    Maks {myUsage?.limits.requests_per_minute ?? 5} req/m
+                                </span>
+                            </div>
+
+                            {loadingUsage && !myUsage ? (
+                                <div className="space-y-2 py-1">
+                                    <div className="h-2 w-full bg-slate-200 dark:bg-slate-700/60 rounded animate-pulse" />
+                                    <div className="h-2 w-3/4 bg-slate-200 dark:bg-slate-700/60 rounded animate-pulse" />
+                                </div>
+                            ) : (
+                                <div className="space-y-2 text-[11px]">
+                                    <div>
+                                        <div className="flex justify-between items-center text-slate-600 dark:text-slate-300 mb-1">
+                                            <span>Input Token</span>
+                                            <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                                {(myUsage?.input_tokens ?? 0).toLocaleString()} / {(myUsage?.limits.daily_token_limit_input ?? 100000).toLocaleString()}
+                                            </span>
+                                        </div>
+                                        <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full transition-all duration-300 ${
+                                                    (myUsage?.input_percentage ?? 0) >= 90
+                                                        ? "bg-rose-500"
+                                                        : (myUsage?.input_percentage ?? 0) >= 75
+                                                        ? "bg-amber-500"
+                                                        : "bg-blue-500"
+                                                }`}
+                                                style={{ width: `${Math.min(100, myUsage?.input_percentage ?? 0)}%` }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <div className="flex justify-between items-center text-slate-600 dark:text-slate-300 mb-1">
+                                            <span>Output Token</span>
+                                            <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                                {(myUsage?.output_tokens ?? 0).toLocaleString()} / {(myUsage?.limits.daily_token_limit_output ?? 100000).toLocaleString()}
+                                            </span>
+                                        </div>
+                                        <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full transition-all duration-300 ${
+                                                    (myUsage?.output_percentage ?? 0) >= 90
+                                                        ? "bg-rose-500"
+                                                        : (myUsage?.output_percentage ?? 0) >= 75
+                                                        ? "bg-amber-500"
+                                                        : "bg-purple-500"
+                                                }`}
+                                                style={{ width: `${Math.min(100, myUsage?.output_percentage ?? 0)}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div className="px-2 py-1.5">
