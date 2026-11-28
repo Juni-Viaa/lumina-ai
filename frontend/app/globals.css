@@ -304,27 +304,9 @@ body {
   display: block;
 }
 
-/* ── Bottom navigation bar — mobile only ──────────────────────────── */
+/* ── Bottom navigation bar — dinonaktifkan untuk layar kecil ────────── */
 #bottom-nav {
-  display: none;
-}
-@media (max-width: 767px) {
-  #bottom-nav {
-    display: flex;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 64px;
-    z-index: 40;
-    background: var(--glass-bg);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
-    border-top: 1px solid var(--glass-border);
-    align-items: center;
-    justify-content: space-around;
-    padding: 0 8px;
-  }
+  display: none !important;
 }
 
 /* ── Tablet & desktop: sidebar diatur sepenuhnya oleh Tailwind di Sidebar.tsx ── */

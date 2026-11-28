@@ -14,6 +14,8 @@ export interface MyTokenUsage {
     output_tokens: number;
     total_tokens: number;
     request_count: number;
+    current_requests: number;
+    requests_percentage: number;
     input_percentage: number;
     output_percentage: number;
     limits: MonitoringLimits;

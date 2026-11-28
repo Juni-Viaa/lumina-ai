@@ -96,7 +96,6 @@ export default function Sidebar({ onClose }: SidebarProps) {
     const router = useRouter();
     const pathname = usePathname();
     const user = getUser();
-    const isAdmin = user?.role === "admin" || user?.is_staff === true;
     const { setTheme } = useTheme();
     const toast = useToast();
 
@@ -239,12 +238,17 @@ export default function Sidebar({ onClose }: SidebarProps) {
         }
     }, [accountOpen]);
 
-    // Fetch user token usage when account menu is opened
+    // Fetch user token usage & connect live SSE stream when account menu is opened
     useEffect(() => {
         if (!accountOpen) return;
         let ignore = false;
-        setLoadingUsage(true);
-        // ponytail: self daily usage fetched on demand when opening popover; can sync with sse later
+        let es: EventSource | null = null;
+
+        queueMicrotask(() => {
+            if (!ignore) setLoadingUsage(true);
+        });
+
+        // 1. Initial REST fetch for instant display without waiting for first SSE event
         monitoringApi
             .getMySummary()
             .then((data) => {
@@ -254,8 +258,38 @@ export default function Sidebar({ onClose }: SidebarProps) {
             .finally(() => {
                 if (!ignore) setLoadingUsage(false);
             });
+
+        // 2. Connect SSE for live sliding-window request limit & token updates
+        try {
+            const streamUrl = monitoringApi.getMySummaryStreamUrl();
+            es = new EventSource(streamUrl, { withCredentials: true });
+
+            es.onmessage = (event) => {
+                if (ignore) return;
+                try {
+                    const payload = JSON.parse(event.data);
+                    if (payload.type === "usage_update" && payload.data) {
+                        setMyUsage(payload.data);
+                        setLoadingUsage(false);
+                    }
+                } catch {
+                    // ignore keep-alive or malformed payload
+                }
+            };
+
+            es.onerror = () => {
+                // EventSource will auto-reconnect; fallback to REST response if closed
+            };
+        } catch {
+            // graceful fallback if EventSource is unsupported
+        }
+
         return () => {
             ignore = true;
+            if (es) {
+                es.close();
+                es = null;
+            }
         };
     }, [accountOpen]);
 
@@ -693,8 +727,12 @@ export default function Sidebar({ onClose }: SidebarProps) {
                                 <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                                     Penggunaan Token
                                 </span>
-                                <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
-                                    Maks {myUsage?.limits.requests_per_minute ?? 5} req/m
+                                <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+                                    <span className="relative flex h-1.5 w-1.5">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                                    </span>
+                                    Live
                                 </span>
                             </div>
 
@@ -702,9 +740,33 @@ export default function Sidebar({ onClose }: SidebarProps) {
                                 <div className="space-y-2 py-1">
                                     <div className="h-2 w-full bg-slate-200 dark:bg-slate-700/60 rounded animate-pulse" />
                                     <div className="h-2 w-3/4 bg-slate-200 dark:bg-slate-700/60 rounded animate-pulse" />
+                                    <div className="h-2 w-1/2 bg-slate-200 dark:bg-slate-700/60 rounded animate-pulse" />
                                 </div>
                             ) : (
-                                <div className="space-y-2 text-[11px]">
+                                <div className="space-y-2.5 text-[11px]">
+                                    {/* Request per Menit (Sliding Window Live) */}
+                                    <div>
+                                        <div className="flex justify-between items-center text-slate-600 dark:text-slate-300 mb-1">
+                                            <span>Request / Menit</span>
+                                            <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                                {myUsage?.current_requests ?? 0} / {myUsage?.limits.requests_per_minute ?? 5} req/m
+                                            </span>
+                                        </div>
+                                        <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full transition-all duration-300 ${
+                                                    (myUsage?.requests_percentage ?? 0) >= 90
+                                                        ? "bg-rose-500"
+                                                        : (myUsage?.requests_percentage ?? 0) >= 70
+                                                        ? "bg-amber-500"
+                                                        : "bg-emerald-500"
+                                                }`}
+                                                style={{ width: `${Math.min(100, myUsage?.requests_percentage ?? 0)}%` }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Input Token */}
                                     <div>
                                         <div className="flex justify-between items-center text-slate-600 dark:text-slate-300 mb-1">
                                             <span>Input Token</span>
@@ -726,6 +788,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
                                         </div>
                                     </div>
 
+                                    {/* Output Token */}
                                     <div>
                                         <div className="flex justify-between items-center text-slate-600 dark:text-slate-300 mb-1">
                                             <span>Output Token</span>

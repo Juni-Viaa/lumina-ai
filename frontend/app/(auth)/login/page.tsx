@@ -1,32 +1,81 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 
 import { api } from "@/lib/api";
 import { setUser, type AuthUser } from "@/lib/auth";
+import { GlassButton } from "@/components/ui/GlassButton";
+import { GlassCard } from "@/components/ui/GlassCard";
+import { GlassInput } from "@/components/ui/GlassInput";
 
 interface LoginResponse {
     user: AuthUser;
 }
 
+type FieldName = "email" | "password";
+type FieldErrors = Partial<Record<FieldName, string>>;
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export default function LoginPage() {
     const router = useRouter();
+    const errorSummaryRef = useRef<HTMLDivElement>(null);
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const [rememberMe, setRememberMe] = useState(true);
+    const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+
+    function validateField(field: FieldName, value: string): string | undefined {
+        if (field === "email") {
+            const trimmed = value.trim();
+            if (!trimmed) return "Email atau nama pengguna wajib diisi.";
+            if (trimmed.includes("@") && !EMAIL_PATTERN.test(trimmed)) {
+                return "Format email tidak valid.";
+            }
+            return undefined;
+        }
+        if (!value) return "Kata sandi wajib diisi.";
+        return undefined;
+    }
+
+    function handleChange(field: FieldName, value: string): void {
+        if (field === "email") setEmail(value);
+        else setPassword(value);
+
+        // Clear stale messages as soon as the user corrects the input.
+        if (fieldErrors[field]) {
+            setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
+        }
+        if (error) setError(null);
+    }
+
+    function handleBlur(field: FieldName): void {
+        const value = field === "email" ? email : password;
+        setFieldErrors((prev) => ({ ...prev, [field]: validateField(field, value) }));
+    }
+
+    function focusErrorSummary(): void {
+        requestAnimationFrame(() => errorSummaryRef.current?.focus());
+    }
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         setError(null);
 
-        if (!email.trim() || !password) {
-            setError("Email dan kata sandi wajib diisi.");
+        const nextErrors: FieldErrors = {
+            email: validateField("email", email),
+            password: validateField("password", password),
+        };
+        setFieldErrors(nextErrors);
+
+        if (nextErrors.email || nextErrors.password) {
+            focusErrorSummary();
             return;
         }
 
@@ -35,6 +84,7 @@ export default function LoginPage() {
             const data = await api.post<LoginResponse>("/auth/login/", {
                 email: email.trim(),
                 password,
+                remember_me: rememberMe,
             });
             setUser(data.user);
             router.replace("/");
@@ -45,25 +95,42 @@ export default function LoginPage() {
                     ? err.message
                     : "Gagal masuk. Silakan periksa kembali email dan kata sandi Anda.",
             );
+            focusErrorSummary();
         } finally {
             setLoading(false);
         }
     }
+
+    const hasFieldErrors = Boolean(fieldErrors.email || fieldErrors.password);
+    const summaryMessage =
+        error ??
+        (hasFieldErrors ? "Periksa kembali kolom yang ditandai di bawah ini." : null);
 
     return (
         <div className="flex h-screen h-[100dvh] max-h-screen w-full flex-col lg:flex-row bg-[#ebf4fa] text-[#1a3a52] overflow-hidden">
             {/* ── Left Panel (50% Desktop, Hidden on Mobile) ──────────────────── */}
             <div className="relative hidden w-full h-full flex-col justify-between overflow-hidden bg-gradient-to-br from-[#0d346c] via-[#1a5db4] to-[#2b7de9] p-6 lg:flex lg:w-1/2 xl:p-10 text-white">
                 {/* Decorative Glowing Orbs */}
-                <div className="pointer-events-none absolute -left-20 -top-20 h-80 w-80 rounded-full bg-cyan-400/25 blur-3xl" />
-                <div className="pointer-events-none absolute -right-24 top-1/3 h-96 w-96 rounded-full bg-blue-300/20 blur-3xl" />
-                <div className="pointer-events-none absolute -bottom-24 left-1/4 h-80 w-80 rounded-full bg-indigo-500/30 blur-3xl" />
+                <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute -left-20 -top-20 h-80 w-80 rounded-full bg-cyan-400/25 blur-3xl"
+                />
+                <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute -right-24 top-1/3 h-96 w-96 rounded-full bg-blue-300/20 blur-3xl"
+                />
+                <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute -bottom-24 left-1/4 h-80 w-80 rounded-full bg-indigo-500/30 blur-3xl"
+                />
 
                 {/* Ambient Grid overlay */}
                 <div
+                    aria-hidden="true"
                     className="pointer-events-none absolute inset-0 opacity-[0.06]"
                     style={{
-                        backgroundImage: `radial-gradient(circle at 1px 1px, #ffffff 1px, transparent 0)`,
+                        backgroundImage:
+                            "radial-gradient(circle at 1px 1px, #ffffff 1px, transparent 0)",
                         backgroundSize: "28px 28px",
                     }}
                 />
@@ -96,6 +163,7 @@ export default function LoginPage() {
                     {/* SVG Illustration: Document + AI Robot + Knowledge Nodes */}
                     <div className="relative mb-4 w-full max-w-[240px] xl:mb-6 xl:max-w-[300px]">
                         <svg
+                            aria-hidden="true"
                             viewBox="0 0 400 320"
                             className="h-auto w-full drop-shadow-2xl"
                             fill="none"
@@ -126,8 +194,21 @@ export default function LoginPage() {
 
                             {/* Background Tech Rings & Connectors */}
                             <ellipse cx="200" cy="270" rx="140" ry="24" fill="url(#glowRing)" />
-                            <circle cx="200" cy="150" r="120" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" strokeDasharray="6 6" />
-                            <circle cx="200" cy="150" r="85" stroke="rgba(255,255,255,0.2)" strokeWidth="1.5" />
+                            <circle
+                                cx="200"
+                                cy="150"
+                                r="120"
+                                stroke="rgba(255,255,255,0.15)"
+                                strokeWidth="1.5"
+                                strokeDasharray="6 6"
+                            />
+                            <circle
+                                cx="200"
+                                cy="150"
+                                r="85"
+                                stroke="rgba(255,255,255,0.2)"
+                                strokeWidth="1.5"
+                            />
 
                             {/* Neural Beam connecting Doc and Robot */}
                             <path
@@ -150,16 +231,20 @@ export default function LoginPage() {
                                     strokeWidth="2"
                                     filter="drop-shadow(0 10px 20px rgba(0,0,0,0.15))"
                                 />
-                                {/* Header bar in doc */}
                                 <rect x="14" y="18" width="40" height="8" rx="4" fill="#3b82f6" />
                                 <circle cx="78" cy="22" r="5" fill="#38bdf8" />
-                                {/* Lines representing text */}
                                 <rect x="14" y="36" width="72" height="5" rx="2.5" fill="#93c5fd" />
                                 <rect x="14" y="48" width="62" height="5" rx="2.5" fill="#cbd5e1" />
                                 <rect x="14" y="60" width="68" height="5" rx="2.5" fill="#cbd5e1" />
                                 <rect x="14" y="72" width="50" height="5" rx="2.5" fill="#cbd5e1" />
-                                {/* Mini Graph / Chart */}
-                                <rect x="14" y="88" width="72" height="26" rx="6" fill="rgba(59,130,246,0.1)" />
+                                <rect
+                                    x="14"
+                                    y="88"
+                                    width="72"
+                                    height="26"
+                                    rx="6"
+                                    fill="rgba(59,130,246,0.1)"
+                                />
                                 <path
                                     d="M20 106 L34 98 L50 102 L64 94 L78 99"
                                     stroke="#2563eb"
@@ -172,14 +257,17 @@ export default function LoginPage() {
 
                             {/* Right Robot / AI Assistant */}
                             <g transform="translate(230, 85)">
-                                {/* Floating Shadow */}
                                 <ellipse cx="50" cy="145" rx="35" ry="8" fill="rgba(0,0,0,0.2)" />
-
-                                {/* Robot Antenna */}
-                                <line x1="50" y1="18" x2="50" y2="4" stroke="#ffffff" strokeWidth="3" strokeLinecap="round" />
+                                <line
+                                    x1="50"
+                                    y1="18"
+                                    x2="50"
+                                    y2="4"
+                                    stroke="#ffffff"
+                                    strokeWidth="3"
+                                    strokeLinecap="round"
+                                />
                                 <circle cx="50" cy="3" r="5" fill="#38bdf8" filter="url(#glow)" />
-
-                                {/* Robot Head */}
                                 <rect
                                     x="10"
                                     y="18"
@@ -190,19 +278,13 @@ export default function LoginPage() {
                                     stroke="rgba(255,255,255,0.8)"
                                     strokeWidth="2"
                                 />
-                                {/* Visor Screen */}
                                 <rect x="20" y="28" width="60" height="34" rx="12" fill="#0f172a" />
-                                {/* Glowing Cyan Eyes */}
                                 <ellipse cx="36" cy="45" rx="6" ry="8" fill="#38bdf8" />
                                 <ellipse cx="64" cy="45" rx="6" ry="8" fill="#38bdf8" />
                                 <circle cx="38" cy="42" r="2" fill="#ffffff" />
                                 <circle cx="66" cy="42" r="2" fill="#ffffff" />
-
-                                {/* Robot Ears / Audio Sensors */}
                                 <rect x="3" y="38" width="7" height="18" rx="3" fill="#93c5fd" />
                                 <rect x="90" y="38" width="7" height="18" rx="3" fill="#93c5fd" />
-
-                                {/* Robot Body */}
                                 <rect
                                     x="20"
                                     y="84"
@@ -213,14 +295,11 @@ export default function LoginPage() {
                                     stroke="rgba(255,255,255,0.8)"
                                     strokeWidth="2"
                                 />
-                                {/* Core AI Emblem */}
                                 <circle cx="50" cy="105" r="11" fill="#3b82f6" />
                                 <path
                                     d="M50 99 L53 103 L57 105 L53 107 L50 111 L47 107 L43 105 L47 103 Z"
                                     fill="#ffffff"
                                 />
-
-                                {/* Arms */}
                                 <rect x="8" y="88" width="10" height="30" rx="5" fill="#bfdbfe" />
                                 <rect x="82" y="88" width="10" height="30" rx="5" fill="#bfdbfe" />
                             </g>
@@ -228,20 +307,27 @@ export default function LoginPage() {
                             {/* Floating Sparkles & Badges */}
                             <g transform="translate(180, 50)">
                                 <circle cx="12" cy="12" r="14" fill="rgba(255,255,255,0.2)" />
-                                <path d="M12 4 L14 10 L20 12 L14 14 L12 20 L10 14 L4 12 L10 10 Z" fill="#facc15" />
+                                <path
+                                    d="M12 4 L14 10 L20 12 L14 14 L12 20 L10 14 L4 12 L10 10 Z"
+                                    fill="#facc15"
+                                />
                             </g>
                             <g transform="translate(40, 210)">
                                 <circle cx="10" cy="10" r="12" fill="rgba(255,255,255,0.2)" />
-                                <path d="M10 4 L11.5 8.5 L16 10 L11.5 11.5 L10 16 L8.5 11.5 L4 10 L8.5 8.5 Z" fill="#38bdf8" />
+                                <path
+                                    d="M10 4 L11.5 8.5 L16 10 L11.5 11.5 L10 16 L8.5 11.5 L4 10 L8.5 8.5 Z"
+                                    fill="#38bdf8"
+                                />
                             </g>
                         </svg>
                     </div>
 
                     <h1 className="max-w-md text-xl font-bold tracking-tight text-white lg:text-2xl xl:text-3xl">
-                        Analisis Dokumen Cerdas dengan RAG & AI
+                        Analisis Dokumen Cerdas dengan RAG &amp; AI
                     </h1>
                     <p className="mt-2 max-w-md text-xs text-blue-100/85 leading-relaxed xl:text-sm">
-                        Tanya jawab dokumen interaktif, perbandingan guideline otomatis, dan pembuatan soal cerdas dengan verifikasi anti-halusinasi.
+                        Tanya jawab dokumen interaktif, perbandingan guideline otomatis, dan
+                        pembuatan soal cerdas dengan verifikasi anti-halusinasi.
                     </p>
                 </div>
 
@@ -251,7 +337,7 @@ export default function LoginPage() {
                         Dense + Sparse RRF
                     </div>
                     <div className="rounded-xl border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-medium text-white/90 backdrop-blur-md xl:text-xs">
-                        Gemini Vision & OCR
+                        Gemini Vision &amp; OCR
                     </div>
                     <div className="rounded-xl border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-medium text-white/90 backdrop-blur-md xl:text-xs">
                         Groundedness Check
@@ -265,7 +351,10 @@ export default function LoginPage() {
                 style={{ backgroundImage: "var(--bg-overlay), url('/images/Background.png')" }}
             >
                 {/* Glass Card Form */}
-                <div className="glass-card relative w-full max-w-md overflow-hidden rounded-[24px] p-6 sm:p-8 backdrop-blur-[20px] transition-all">
+                <GlassCard
+                    variant="interactive"
+                    className="relative my-auto w-full max-w-md overflow-hidden rounded-[24px] p-6 backdrop-blur-[20px] sm:p-8"
+                >
                     {/* Header inside Card */}
                     <div className="mb-5 text-center sm:mb-6">
                         {/* Mobile Brand Header */}
@@ -279,7 +368,9 @@ export default function LoginPage() {
                                     className="h-full w-full object-contain"
                                 />
                             </div>
-                            <span className="mt-1.5 text-lg font-bold text-[#0f2436] dark:text-[#f0f6fc]">Lumina</span>
+                            <span className="mt-1.5 text-lg font-bold text-[#0f2436] dark:text-[#f0f6fc]">
+                                Lumina
+                            </span>
                             <span className="text-[10px] font-medium tracking-wide text-[#3b82f6] dark:text-[#60a5fa]">
                                 IF-4MD-08 • PBL 2026
                             </span>
@@ -293,10 +384,16 @@ export default function LoginPage() {
                         </p>
                     </div>
 
-                    {/* Error Banner */}
-                    {error && (
-                        <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50/90 p-3 text-xs text-red-700 shadow-sm backdrop-blur-sm animate-in fade-in duration-200 sm:text-sm">
+                    {/* Error Summary: focusable + linked to invalid fields */}
+                    {summaryMessage && (
+                        <div
+                            ref={errorSummaryRef}
+                            role="alert"
+                            tabIndex={-1}
+                            className="mb-4 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50/90 p-3 text-xs text-red-700 shadow-sm backdrop-blur-sm animate-in fade-in duration-200 focus:outline-none focus:ring-2 focus:ring-red-400 sm:text-sm"
+                        >
                             <svg
+                                aria-hidden="true"
                                 className="mt-0.5 h-4 w-4 shrink-0 text-red-600"
                                 fill="currentColor"
                                 viewBox="0 0 20 20"
@@ -307,7 +404,34 @@ export default function LoginPage() {
                                     clipRule="evenodd"
                                 />
                             </svg>
-                            <span className="leading-tight">{error}</span>
+                            <div className="space-y-1">
+                                <p className="font-semibold">Ada masalah pada formulir</p>
+                                <p className="leading-tight">{summaryMessage}</p>
+                                {hasFieldErrors && (
+                                    <ul className="ml-4 list-disc space-y-0.5">
+                                        {fieldErrors.email && (
+                                            <li>
+                                                <a
+                                                    href="#login-email"
+                                                    className="underline hover:text-red-900"
+                                                >
+                                                    {fieldErrors.email}
+                                                </a>
+                                            </li>
+                                        )}
+                                        {fieldErrors.password && (
+                                            <li>
+                                                <a
+                                                    href="#login-password"
+                                                    className="underline hover:text-red-900"
+                                                >
+                                                    {fieldErrors.password}
+                                                </a>
+                                            </li>
+                                        )}
+                                    </ul>
+                                )}
+                            </div>
                         </div>
                     )}
 
@@ -315,12 +439,28 @@ export default function LoginPage() {
                     <form onSubmit={handleSubmit} className="space-y-3.5 sm:space-y-4" noValidate>
                         {/* Email Field */}
                         <div>
-                            <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#334e68] dark:text-[#94a3b8] mb-1 sm:text-xs">
+                            <label
+                                htmlFor="login-email"
+                                className="block text-[11px] font-semibold uppercase tracking-wider text-[#334e68] dark:text-[#94a3b8] mb-1 sm:text-xs"
+                            >
                                 Email atau Nama Pengguna
                             </label>
-                            <div className="relative">
-                                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-[#6a8b9f]">
+                            <GlassInput
+                                id="login-email"
+                                type="text"
+                                value={email}
+                                onChange={(e) => handleChange("email", e.target.value)}
+                                onBlur={() => handleBlur("email")}
+                                placeholder="nama@email.com atau username"
+                                autoComplete="email"
+                                variant={fieldErrors.email ? "error" : "default"}
+                                aria-invalid={Boolean(fieldErrors.email)}
+                                aria-describedby={
+                                    fieldErrors.email ? "login-email-error" : undefined
+                                }
+                                leadingIcon={
                                     <svg
+                                        aria-hidden="true"
                                         className="h-4 w-4"
                                         fill="none"
                                         viewBox="0 0 24 24"
@@ -333,26 +473,42 @@ export default function LoginPage() {
                                             d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.206"
                                         />
                                     </svg>
-                                </div>
-                                <input
-                                    type="text"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    placeholder="nama@email.com atau username"
-                                    autoComplete="email"
-                                    className="w-full rounded-xl border border-white/40 dark:border-slate-700 bg-white/70 dark:bg-slate-800/80 py-2.5 pl-10 pr-3.5 text-sm text-[#0f2436] dark:text-[#f0f6fc] placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-4 focus:ring-blue-500/15"
-                                />
-                            </div>
+                                }
+                            />
+                            {fieldErrors.email && (
+                                <p
+                                    id="login-email-error"
+                                    className="mt-1 text-xs text-red-600 dark:text-red-400"
+                                >
+                                    {fieldErrors.email}
+                                </p>
+                            )}
                         </div>
 
                         {/* Password Field with "Tampilkan Sandi" Toggle */}
                         <div>
-                            <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#334e68] dark:text-[#94a3b8] mb-1 sm:text-xs">
+                            <label
+                                htmlFor="login-password"
+                                className="block text-[11px] font-semibold uppercase tracking-wider text-[#334e68] dark:text-[#94a3b8] mb-1 sm:text-xs"
+                            >
                                 Kata Sandi
                             </label>
-                            <div className="relative">
-                                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-[#6a8b9f]">
+                            <GlassInput
+                                id="login-password"
+                                type={showPassword ? "text" : "password"}
+                                value={password}
+                                onChange={(e) => handleChange("password", e.target.value)}
+                                onBlur={() => handleBlur("password")}
+                                placeholder="Masukkan kata sandi"
+                                autoComplete="current-password"
+                                variant={fieldErrors.password ? "error" : "default"}
+                                aria-invalid={Boolean(fieldErrors.password)}
+                                aria-describedby={
+                                    fieldErrors.password ? "login-password-error" : undefined
+                                }
+                                leadingIcon={
                                     <svg
+                                        aria-hidden="true"
                                         className="h-4 w-4"
                                         fill="none"
                                         viewBox="0 0 24 24"
@@ -365,65 +521,76 @@ export default function LoginPage() {
                                             d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
                                         />
                                     </svg>
-                                </div>
-                                <input
-                                    type={showPassword ? "text" : "password"}
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    placeholder="Masukkan kata sandi"
-                                    autoComplete="current-password"
-                                    className="w-full rounded-xl border border-white/40 dark:border-slate-700 bg-white/70 dark:bg-slate-800/80 py-2.5 pl-10 pr-11 text-sm text-[#0f2436] dark:text-[#f0f6fc] placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-4 focus:ring-blue-500/15"
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowPassword((prev) => !prev)}
-                                    title={showPassword ? "Sembunyikan sandi" : "Tampilkan sandi"}
-                                    aria-label={showPassword ? "Sembunyikan sandi" : "Tampilkan sandi"}
-                                    className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-[#6a8b9f] hover:text-[#1a3a52] focus:outline-none transition-colors"
+                                }
+                                trailing={
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword((prev) => !prev)}
+                                        title={showPassword ? "Sembunyikan sandi" : "Tampilkan sandi"}
+                                        aria-label={
+                                            showPassword ? "Sembunyikan sandi" : "Tampilkan sandi"
+                                        }
+                                        aria-pressed={showPassword}
+                                        className="flex items-center rounded text-[#6a8b9f] transition-colors hover:text-[#1a3a52] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:hover:text-[#f0f6fc]"
+                                    >
+                                        {showPassword ? (
+                                            <svg
+                                                aria-hidden="true"
+                                                className="h-4 w-4"
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                                stroke="currentColor"
+                                            >
+                                                <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    strokeWidth={2}
+                                                    d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"
+                                                />
+                                            </svg>
+                                        ) : (
+                                            <svg
+                                                aria-hidden="true"
+                                                className="h-4 w-4"
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                                stroke="currentColor"
+                                            >
+                                                <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    strokeWidth={2}
+                                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                                                />
+                                                <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    strokeWidth={2}
+                                                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                                                />
+                                            </svg>
+                                        )}
+                                    </button>
+                                }
+                            />
+                            {fieldErrors.password && (
+                                <p
+                                    id="login-password-error"
+                                    className="mt-1 text-xs text-red-600 dark:text-red-400"
                                 >
-                                    {showPassword ? (
-                                        <svg
-                                            className="h-4 w-4"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            stroke="currentColor"
-                                        >
-                                            <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                strokeWidth={2}
-                                                d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"
-                                            />
-                                        </svg>
-                                    ) : (
-                                        <svg
-                                            className="h-4 w-4"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            stroke="currentColor"
-                                        >
-                                            <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                strokeWidth={2}
-                                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                                            />
-                                            <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                strokeWidth={2}
-                                                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                                            />
-                                        </svg>
-                                    )}
-                                </button>
-                            </div>
+                                    {fieldErrors.password}
+                                </p>
+                            )}
                         </div>
 
                         {/* "Ingat Saya" Checkbox & "Lupa kata sandi?" Link */}
                         <div className="flex items-center justify-between pt-0.5">
-                            <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-[#355872]">
+                            <label
+                                htmlFor="login-remember"
+                                className="flex cursor-pointer items-center gap-2 text-xs font-medium text-[#355872] dark:text-[#94a3b8]"
+                            >
                                 <input
+                                    id="login-remember"
                                     type="checkbox"
                                     checked={rememberMe}
                                     onChange={(e) => setRememberMe(e.target.checked)}
@@ -440,16 +607,19 @@ export default function LoginPage() {
                             </Link>
                         </div>
 
-                        {/* Button "Masuk" (AC: gradient blue, full width) */}
+                        {/* Button "Masuk" */}
                         <div className="pt-1.5">
-                            <button
+                            <GlassButton
                                 type="submit"
+                                variant="primary"
+                                size="lg"
                                 disabled={loading}
-                                className="relative flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#175ea1] via-[#2563eb] to-[#3b82f6] px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-600/25 transition-all duration-200 hover:from-[#134e86] hover:to-[#1d4ed8] hover:shadow-lg hover:shadow-blue-600/35 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+                                className="w-full gap-2"
                             >
                                 {loading ? (
                                     <>
                                         <svg
+                                            aria-hidden="true"
                                             className="h-4 w-4 animate-spin text-white"
                                             xmlns="http://www.w3.org/2000/svg"
                                             fill="none"
@@ -474,11 +644,11 @@ export default function LoginPage() {
                                 ) : (
                                     <span>Masuk</span>
                                 )}
-                            </button>
+                            </GlassButton>
                         </div>
 
                         {/* Link "Daftar di sini" ke halaman register */}
-                        <div className="pt-2 text-center text-xs text-[#52748d]">
+                        <div className="pt-2 text-center text-xs text-[#52748d] dark:text-[#94a3b8]">
                             <span>Belum punya akun? </span>
                             <Link
                                 href="/register"
@@ -488,7 +658,7 @@ export default function LoginPage() {
                             </Link>
                         </div>
                     </form>
-                </div>
+                </GlassCard>
             </div>
         </div>
     );

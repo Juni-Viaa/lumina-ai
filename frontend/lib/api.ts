@@ -283,6 +283,7 @@ export const queriesApi = {
 
 export const monitoringApi = {
     getMySummary: () => api.get<MyTokenUsage>("/monitoring/my-summary/"),
+    getMySummaryStreamUrl: () => api.getEventSourceUrl("/monitoring/my-summary/stream/"),
     getSummary: (params?: { date?: string; start_date?: string; end_date?: string; user_id?: number }) => {
         const query = new URLSearchParams();
         if (params?.date) query.set("date", params.date);

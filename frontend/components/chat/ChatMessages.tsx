@@ -43,7 +43,7 @@ export function ChatMessages({
         <div
             ref={scrollRef}
             className={cn(
-                "mx-auto flex w-full max-w-[820px] flex-col gap-5 px-5 pt-6 pb-2.5",
+                "mx-auto flex w-full max-w-[820px] flex-col gap-5 px-4 sm:px-5 pt-4 sm:pt-6 pb-2.5",
                 className,
             )}
         >

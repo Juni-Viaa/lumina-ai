@@ -4,6 +4,7 @@ import logging
 
 from django.conf import settings
 from django.middleware.csrf import get_token
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.authtoken.models import Token
@@ -33,11 +34,13 @@ COOKIE_NAME = "lumina_session"
 
 
 def _set_session_cookie(response: Response, session: Session) -> None:
-    """Set HttpOnly session cookie pada response."""
+    """Set HttpOnly session cookie dengan masa berlaku mengikuti session record."""
+    # Cookie expire mengikuti `expires_at` di database agar "Ingat saya" konsisten.
+    max_age = max(0, int((session.expires_at - timezone.now()).total_seconds()))
     response.set_cookie(
         key=COOKIE_NAME,
         value=str(session.session_key),
-        max_age=settings.SESSION_COOKIE_AGE,
+        max_age=max_age,
         httponly=True,
         secure=settings.SESSION_COOKIE_SECURE,
         samesite=settings.SESSION_COOKIE_SAMESITE,
@@ -92,7 +95,9 @@ class LoginView(APIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data["user"]
 
-        session = create_session(user.id, request=request)
+        # "Ingat saya" memperpanjang session dari 7 hari menjadi 30 hari.
+        expiry_days = 30 if serializer.validated_data.get("remember_me") else 7
+        session = create_session(user.id, request=request, expiry_days=expiry_days)
 
         response = Response({"user": UserSerializer(user).data})
         _set_session_cookie(response, session)

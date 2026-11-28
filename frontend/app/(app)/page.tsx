@@ -349,20 +349,20 @@ export default function DashboardPage() {
             {/* Chat area */}
             <div className="flex flex-1 flex-col overflow-y-auto">
                 {loadingConversation ? (
-                    <div className="mx-auto flex w-full max-w-[820px] flex-col gap-6 px-5 pt-6 pb-2.5">
+                    <div className="mx-auto flex w-full max-w-[820px] flex-col gap-6 px-4 sm:px-5 pt-4 sm:pt-6 pb-2.5">
                         <SkeletonChatBubble role="assistant" />
                         <SkeletonChatBubble role="user" />
                         <SkeletonChatBubble role="assistant" />
                     </div>
                 ) : messages.length === 0 ? (
-                    <div className="flex flex-1 flex-col items-center justify-center px-6 py-10 text-center">
+                    <div className="flex flex-1 flex-col items-center justify-center px-4 sm:px-6 py-6 sm:py-10 text-center">
                         <div className="flex h-[72px] w-[72px] items-center justify-center">
                             <Image src="/images/icons/Logo.png" width={72} height={72} className="h-full w-full object-contain mix-blend-multiply dark:mix-blend-normal" alt="Lumina" />
                         </div>
-                        <h1 className="mb-2 text-[28px] font-bold tracking-tight text-[#0f2436] dark:text-[#f0f6fc]">
+                        <h1 className="mb-2 text-2xl sm:text-[28px] font-bold tracking-tight text-[#0f2436] dark:text-[#f0f6fc]">
                             Halo! Saya <span className="text-[#3b82f6]">Lumina</span>
                         </h1>
-                        <p className="mb-6 max-w-[440px] text-[15px] leading-relaxed text-[#334e68] dark:text-[#94a3b8]">
+                        <p className="mb-6 max-w-[440px] text-sm sm:text-[15px] leading-relaxed text-[#334e68] dark:text-[#94a3b8]">
                             Asisten akademikmu. Ajukan pertanyaan dan aku akan menjawabnya sesuai pengetahuanku.
                         </p>
 
@@ -371,6 +371,7 @@ export default function DashboardPage() {
                                 Belum ada dokumen terindeks. Hubungi admin untuk mengunggah dokumen sebelum mengajukan pertanyaan.
                             </p>
                         )}
+
                         <div className="mx-auto w-full max-w-[820px]">
                             <ChatInput
                                 question={question}
@@ -398,7 +399,7 @@ export default function DashboardPage() {
             </div>
 
             {!loadingConversation && messages.length > 0 && (
-                <div className="shrink-0 px-5 pb-5 pt-4">
+                <div className="shrink-0 px-4 sm:px-5 pb-4 sm:pb-5 pt-3 sm:pt-4">
                     <div className="mx-auto w-full max-w-[820px]">
                         <ChatInput
                             question={question}

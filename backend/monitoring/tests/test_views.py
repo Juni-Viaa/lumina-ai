@@ -85,8 +85,54 @@ class MonitoringApiEndpointsTest(APITestCase):
         self.assertEqual(data["output_tokens"], 800)
         self.assertEqual(data["total_tokens"], 2300)
         self.assertEqual(data["request_count"], 3)
+        self.assertIn("current_requests", data)
+        self.assertIn("requests_percentage", data)
         self.assertIn("limits", data)
         self.assertIn("requests_per_minute", data["limits"])
+
+    def test_my_summary_sliding_window_requests(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        self.client.force_authenticate(user=self.mahasiswa)
+
+        initial = self.client.get("/api/monitoring/my-summary/").data["current_requests"]
+
+        # Buat request log baru (dalam 60 detik)
+        UserRequestLog.objects.create(
+            user=self.mahasiswa,
+            endpoint="/api/ask/",
+            status_code=200,
+        )
+        UserRequestLog.objects.create(
+            user=self.mahasiswa,
+            endpoint="/api/ask/",
+            status_code=200,
+        )
+        # Buat request log lama (> 60 detik)
+        old_log = UserRequestLog.objects.create(
+            user=self.mahasiswa,
+            endpoint="/api/ask/",
+            status_code=200,
+        )
+        UserRequestLog.objects.filter(id=old_log.id).update(
+            created_at=timezone.now() - timedelta(seconds=120)
+        )
+
+        response = self.client.get("/api/monitoring/my-summary/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.data
+        self.assertEqual(data["current_requests"], initial + 2)
+        self.assertGreater(data["requests_percentage"], 0)
+
+    def test_my_summary_stream_for_authenticated_user(self):
+        self.client.force_authenticate(user=self.mahasiswa)
+        response = self.client.get("/api/monitoring/my-summary/stream/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response["Content-Type"], "text/event-stream")
+
+    def test_my_summary_stream_unauthenticated_forbidden(self):
+        response = self.client.get("/api/monitoring/my-summary/stream/")
+        self.assertIn(response.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
 
     def test_my_summary_unauthenticated_forbidden(self):
         response = self.client.get("/api/monitoring/my-summary/")

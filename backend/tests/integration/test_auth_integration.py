@@ -339,5 +339,47 @@ class TestSecurity:
         assert settings.SESSION_COOKIE_HTTPONLY == True
 
 
+class TestRememberMe:
+    """Tests untuk checkbox 'Ingat saya' pada endpoint login."""
+
+    @staticmethod
+    def _login(client, remember_me=None):
+        payload = {
+            "email": "test@example.com",
+            "password": "testpass123",
+        }
+        if remember_me is not None:
+            payload["remember_me"] = remember_me
+        return client.post(
+            "/api/auth/login/",
+            json.dumps(payload),
+            content_type="application/json",
+        )
+
+    def test_default_session_expires_in_seven_days(self, client, create_user, db):
+        """Tanpa 'Ingat saya', session dan cookie berlaku 7 hari."""
+        response = self._login(client)
+        assert response.status_code == 200
+
+        session = Session.objects.get(user=create_user, is_active=True)
+        remaining_days = (session.expires_at - timezone.now()).total_seconds() / 86400
+        assert 6.99 <= remaining_days <= 7.0
+
+        max_age = int(response.cookies["lumina_session"]["max-age"])
+        assert 7 * 86400 - 5 <= max_age <= 7 * 86400
+
+    def test_remember_me_extends_session_to_thirty_days(self, client, create_user, db):
+        """Dengan 'Ingat saya', session dan cookie berlaku 30 hari."""
+        response = self._login(client, remember_me=True)
+        assert response.status_code == 200
+
+        session = Session.objects.get(user=create_user, is_active=True)
+        remaining_days = (session.expires_at - timezone.now()).total_seconds() / 86400
+        assert 29.99 <= remaining_days <= 30.0
+
+        max_age = int(response.cookies["lumina_session"]["max-age"])
+        assert 30 * 86400 - 5 <= max_age <= 30 * 86400
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

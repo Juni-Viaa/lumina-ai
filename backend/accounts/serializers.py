@@ -24,7 +24,7 @@ class UserSerializer(serializers.ModelSerializer):
 class RegisterSerializer(serializers.Serializer):
     """Validasi & pembuatan user baru."""
 
-    username = serializers.CharField(max_length=255, trim_whitespace=True)
+    username = serializers.CharField(max_length=15, trim_whitespace=True)
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True, min_length=8)
     password_confirm = serializers.CharField(write_only=True)
@@ -61,6 +61,7 @@ class LoginSerializer(serializers.Serializer):
 
     email = serializers.CharField(trim_whitespace=True)
     password = serializers.CharField(trim_whitespace=False)
+    remember_me = serializers.BooleanField(required=False, default=False)
 
     def validate(self, attrs: dict) -> dict:
         identifier = (attrs.get("email") or "").strip()

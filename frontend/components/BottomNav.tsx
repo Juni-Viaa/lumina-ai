@@ -21,7 +21,7 @@ export default function BottomNav() {
         <nav
             id="bottom-nav"
             aria-label="Navigasi bawah seluler"
-            className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex h-16 items-center justify-around px-4 border-t border-white/30 dark:border-slate-800 bg-white/75 dark:bg-slate-900/80 backdrop-blur-xl"
+            className="hidden"
         >
             {/* Chat Tab */}
             <Link

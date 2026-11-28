@@ -54,7 +54,7 @@ export function ChatInput({
     return (
         <>
             {error && <p className="mb-1 text-xs text-red-500">{error}</p>}
-            <form onSubmit={handleSubmit} className="glass-input flex items-center gap-2.5 rounded-3xl px-5 py-2">
+            <form onSubmit={handleSubmit} className="glass-input flex items-center gap-2 rounded-3xl px-3.5 sm:px-5 py-1.5 sm:py-2">
                 <textarea
                     ref={textareaRef}
                     value={question}

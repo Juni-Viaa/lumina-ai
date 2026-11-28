@@ -22,6 +22,7 @@ from . import config
 from .models import UserRequestLog, UserTokenUsage
 from .permissions import IsAdminUserRole
 from .serializers import UserRequestLogSerializer, UserTokenUsageSerializer
+from .services import get_user_usage_summary
 
 logger = logging.getLogger(__name__)
 
@@ -36,34 +37,38 @@ class MyTokenUsageSummaryView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        today = timezone.localdate()
-        # ponytail: current user daily usage; upgrade to cached aggregates if request volume spikes
-        usage = UserTokenUsage.objects.filter(
-            user=request.user, date=today, deleted_at__isnull=True
-        ).first()
+        summary = get_user_usage_summary(request.user)
+        return Response(summary)
 
-        input_tokens = usage.input_tokens if usage else 0
-        output_tokens = usage.output_tokens if usage else 0
-        total_tokens = usage.total_tokens if usage else 0
-        request_count = usage.request_count if usage else 0
 
-        input_pct = min(100.0, round((input_tokens / config.DAILY_TOKEN_LIMIT_INPUT) * 100, 1))
-        output_pct = min(100.0, round((output_tokens / config.DAILY_TOKEN_LIMIT_OUTPUT) * 100, 1))
+class MyTokenUsageStreamView(APIView):
+    """
+    GET /api/monitoring/my-summary/stream/
+    Server-Sent Events (SSE) endpoint untuk pembaruan real-time ringkasan kuota dan rate limit pengguna yang login.
+    Dapat diakses oleh seluruh user yang terautentikasi (mahasiswa & admin).
+    """
 
-        return Response({
-            "date": str(today),
-            "input_tokens": input_tokens,
-            "output_tokens": output_tokens,
-            "total_tokens": total_tokens,
-            "request_count": request_count,
-            "input_percentage": input_pct,
-            "output_percentage": output_pct,
-            "limits": {
-                "requests_per_minute": config.RATE_LIMIT_REQUESTS_PER_MINUTE,
-                "daily_token_limit_input": config.DAILY_TOKEN_LIMIT_INPUT,
-                "daily_token_limit_output": config.DAILY_TOKEN_LIMIT_OUTPUT,
-            },
-        })
+    permission_classes = [permissions.IsAuthenticated]
+    renderer_classes = [ServerSentEventRenderer, JSONRenderer]
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+
+        def event_stream():
+            try:
+                # Stream selama ~45 detik (30 iterasi * 1.5 detik), browser EventSource akan auto-reconnect
+                for _ in range(30):
+                    summary = get_user_usage_summary(user)
+                    yield f"data: {json.dumps({'type': 'usage_update', 'data': summary})}\n\n"
+                    yield ": keep-alive\n\n"
+                    time.sleep(1.5)
+            except (GeneratorExit, ConnectionResetError, BrokenPipeError):
+                logger.info("Client disconnected from my-summary stream for user %s", user.id)
+
+        response = StreamingHttpResponse(event_stream(), content_type="text/event-stream")
+        response["Cache-Control"] = "no-cache"
+        response["X-Accel-Buffering"] = "no"
+        return response
 
 
 class TokenUsageSummaryView(APIView):

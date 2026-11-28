@@ -126,13 +126,13 @@ export default function DocumentsPage() {
 
     if (loading) {
         return (
-            <div className="mx-auto max-w-4xl p-6 space-y-6">
+            <div className="mx-auto max-w-4xl p-4 sm:p-6 space-y-4 sm:space-y-6">
                 <div className="space-y-1.5">
                     <Skeleton className="h-6 w-44" />
                     <Skeleton className="h-4 w-72" />
                 </div>
 
-                <div className="glass-panel p-6 rounded-2xl">
+                <div className="glass-panel p-4 sm:p-6 rounded-2xl">
                     <Skeleton className="h-36 w-full rounded-2xl" />
                 </div>
 
@@ -147,7 +147,7 @@ export default function DocumentsPage() {
     }
 
     return (
-        <div className="mx-auto max-w-4xl p-6 space-y-6">
+        <div className="mx-auto max-w-4xl p-4 sm:p-6 space-y-4 sm:space-y-6">
             <div>
                 <h1 className="text-xl font-bold text-[#0f2436] dark:text-[#f0f6fc]">
                     Dokumen Saya
@@ -158,7 +158,7 @@ export default function DocumentsPage() {
             </div>
 
             {/* Upload Glass Card */}
-            <GlassCard variant="panel" className="p-6">
+            <GlassCard variant="panel" className="p-4 sm:p-6">
                 <form onSubmit={handleUpload}>
                     <div
                         onDragOver={(e) => e.preventDefault()}
@@ -166,7 +166,7 @@ export default function DocumentsPage() {
                             e.preventDefault();
                             if (!uploading) setFile(e.dataTransfer.files[0] ?? null);
                         }}
-                        className="group flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-blue-500/30 dark:border-blue-400/20 bg-blue-50/20 dark:bg-blue-950/10 p-8 text-center transition-all hover:border-blue-500 hover:bg-blue-50/40 dark:hover:bg-blue-950/20"
+                        className="group flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-blue-500/30 dark:border-blue-400/20 bg-blue-50/20 dark:bg-blue-950/10 p-5 sm:p-8 text-center transition-all hover:border-blue-500 hover:bg-blue-50/40 dark:hover:bg-blue-950/20"
                     >
                         <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400">
                             <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>

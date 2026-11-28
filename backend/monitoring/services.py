@@ -191,3 +191,67 @@ def check_request_limits(user: Any, estimated_input_tokens: int = 0) -> tuple[bo
 
     return True, None, 200, 0
 
+
+def get_user_usage_summary(user: Any) -> dict[str, Any]:
+    """
+    Ambil ringkasan penggunaan token dan rate limit sliding-window untuk pengguna.
+    Dapat digunakan baik oleh endpoint REST (MyTokenUsageSummaryView) maupun SSE stream.
+    """
+    today = timezone.localdate()
+    now = timezone.now()
+    window_start = now - timedelta(seconds=config.RATE_LIMIT_WINDOW_SECONDS)
+
+    usage = None
+    if user and getattr(user, "is_authenticated", False):
+        usage = UserTokenUsage.objects.filter(
+            user=user, date=today, deleted_at__isnull=True
+        ).first()
+
+    input_tokens = usage.input_tokens if usage else 0
+    output_tokens = usage.output_tokens if usage else 0
+    total_tokens = usage.total_tokens if usage else 0
+    request_count = usage.request_count if usage else 0
+
+    # Hitung request dalam sliding window 60 detik terakhir
+    current_requests = 0
+    if user and getattr(user, "is_authenticated", False):
+        current_requests = UserRequestLog.objects.filter(
+            user=user,
+            created_at__gte=window_start,
+            deleted_at__isnull=True,
+        ).count()
+
+    input_pct = (
+        min(100.0, round((input_tokens / config.DAILY_TOKEN_LIMIT_INPUT) * 100, 1))
+        if config.DAILY_TOKEN_LIMIT_INPUT > 0
+        else 0.0
+    )
+    output_pct = (
+        min(100.0, round((output_tokens / config.DAILY_TOKEN_LIMIT_OUTPUT) * 100, 1))
+        if config.DAILY_TOKEN_LIMIT_OUTPUT > 0
+        else 0.0
+    )
+    requests_pct = (
+        min(100.0, round((current_requests / config.RATE_LIMIT_REQUESTS_PER_MINUTE) * 100, 1))
+        if config.RATE_LIMIT_REQUESTS_PER_MINUTE > 0
+        else 0.0
+    )
+
+    return {
+        "date": str(today),
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "total_tokens": total_tokens,
+        "request_count": request_count,
+        "current_requests": current_requests,
+        "requests_percentage": requests_pct,
+        "input_percentage": input_pct,
+        "output_percentage": output_pct,
+        "limits": {
+            "requests_per_minute": config.RATE_LIMIT_REQUESTS_PER_MINUTE,
+            "daily_token_limit_input": config.DAILY_TOKEN_LIMIT_INPUT,
+            "daily_token_limit_output": config.DAILY_TOKEN_LIMIT_OUTPUT,
+        },
+    }
+
+

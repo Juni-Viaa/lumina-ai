@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Space_Grotesk } from "next/font/google";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ToastProvider } from "@/components/ui/Toast";
@@ -8,6 +8,12 @@ const spaceGrotesk = Space_Grotesk({
     variable: "--font-space-grotesk",
     subsets: ["latin"],
 });
+
+export const viewport: Viewport = {
+    width: "device-width",
+    initialScale: 1,
+    viewportFit: "cover",
+};
 
 export const metadata: Metadata = {
     title: {

@@ -9,7 +9,15 @@ import { GlassButton } from "@/components/ui/GlassButton";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { useQueryLogsSSE } from "@/hooks/useQueryLogsSSE";
-import type { ChartsData, QueryLogItem, TokenSummary } from "@/types/monitoring";
+import {
+    ResponsiveContainer,
+    LineChart,
+    Line,
+    XAxis,
+    YAxis,
+    Tooltip,
+} from "recharts";
+import type { ChartsData, DailyTrend, QueryLogItem, TokenSummary } from "@/types/monitoring";
 
 export default function MonitoringPage() {
     const user = getUser();
@@ -25,6 +33,7 @@ export default function MonitoringPage() {
     });
 
     const [chartDays, setChartDays] = useState<number>(7);
+    const [chartType, setChartType] = useState<'all' | 'input' | 'output'>('all');
     const [summary, setSummary] = useState<TokenSummary | null>(null);
     const [charts, setCharts] = useState<ChartsData | null>(null);
     const [logs, setLogs] = useState<QueryLogItem[]>([]);
@@ -132,12 +141,24 @@ export default function MonitoringPage() {
         },
     });
 
-    // Chart max calculations
-    const maxChartTokens = useMemo(() => {
-        if (!charts || !charts.daily_trends.length) return 1000;
-        const maxVal = Math.max(...charts.daily_trends.map((d) => d.total_tokens), 100);
-        return maxVal;
-    }, [charts]);
+    // X axis tick dates - per 5 tanggal untuk 30 hari
+    const xAxisTicks = useMemo(() => {
+        const trends = charts?.daily_trends || [];
+        const total = trends.length;
+        const result: string[] = [];
+        trends.forEach((_, i) => {
+            let show: boolean;
+            if (chartDays <= 7) {
+                show = true;
+            } else if (chartDays === 14) {
+                show = i % 2 === 0;
+            } else {
+                show = i % 5 === 0 || i === total - 1;
+            }
+            if (show) result.push(trends[i].date);
+        });
+        return result;
+    }, [charts?.daily_trends, chartDays]);
 
     if (!isAdmin) {
         return (
@@ -336,56 +357,134 @@ export default function MonitoringPage() {
                     </div>
 
                     {loadingCharts ? (
-                        <div className="h-56 flex items-end gap-3 pt-6">
-                            {[...Array(7)].map((_, i) => (
-                                <Skeleton key={i} className="flex-1 rounded-t-lg h-32" />
-                            ))}
+                        <div className="h-64 flex items-center justify-center">
+                            <Skeleton className="w-full h-40 rounded-lg" />
                         </div>
-                    ) : (
+                    ) : charts?.daily_trends && charts.daily_trends.length > 0 ? (
                         <div className="space-y-3 pt-4">
-                            {/* Bar Chart Container */}
-                            <div className="h-52 flex items-end gap-2 sm:gap-3 border-b border-slate-200 dark:border-slate-800 pb-2 px-1">
-                                {charts?.daily_trends.map((day) => {
-                                    const heightPct = Math.max(8, Math.round((day.total_tokens / maxChartTokens) * 100));
-                                    const inputHeightPct = day.total_tokens > 0 ? (day.input_tokens / day.total_tokens) * 100 : 50;
-                                    const shortDate = day.date.slice(5); // MM-DD
-                                    return (
-                                        <div
-                                            key={day.date}
-                                            className="group relative flex-1 flex flex-col items-center h-full justify-end"
-                                        >
-                                            {/* Tooltip on hover */}
-                                            <div className="absolute bottom-full mb-2 hidden group-hover:flex flex-col rounded-lg bg-slate-900/95 text-white p-2 text-[10px] shadow-lg pointer-events-none z-20 whitespace-nowrap dark:bg-slate-800">
-                                                <span className="font-semibold text-slate-200">{day.date}</span>
-                                                <span>Input: {day.input_tokens.toLocaleString()}</span>
-                                                <span>Output: {day.output_tokens.toLocaleString()}</span>
-                                                <span className="font-bold text-blue-300">Total: {day.total_tokens.toLocaleString()}</span>
-                                                <span className="text-slate-400">{day.request_count} request</span>
-                                            </div>
+                            {/* Chart Type Toggle (Popover) */}
+                            <div className="flex items-center gap-2 rounded-xl bg-slate-100/80 dark:bg-slate-800/80 p-1 text-xs mb-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setChartType('all')}
+                                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                                        chartType === 'all'
+                                            ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm"
+                                            : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                                    }`}
+                                >
+                                    Kedua-duanya
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setChartType('input')}
+                                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                                        chartType === 'input'
+                                            ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm"
+                                            : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                                    }`}
+                                >
+                                    Input
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setChartType('output')}
+                                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                                        chartType === 'output'
+                                            ? "bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-400 shadow-sm"
+                                            : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                                    }`}
+                                >
+                                    Output
+                                </button>
+                            </div>
 
-                                            {/* Bar */}
-                                            <div
-                                                style={{ height: `${heightPct}%` }}
-                                                className="w-full rounded-t-md overflow-hidden bg-slate-200 dark:bg-slate-700/60 flex flex-col justify-end transition-all duration-300 hover:opacity-85"
-                                            >
-                                                {/* Output portion */}
-                                                <div
-                                                    style={{ height: `${100 - inputHeightPct}%` }}
-                                                    className="w-full bg-purple-500/80"
-                                                />
-                                                {/* Input portion */}
-                                                <div
-                                                    style={{ height: `${inputHeightPct}%` }}
-                                                    className="w-full bg-blue-500"
-                                                />
-                                            </div>
-
-                                            <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mt-2 truncate max-w-full">
-                                                {shortDate}
-                                            </span>
-                                        </div>
-                                    );
-                                })}
+                            {/* Line Chart */}
+                            <div className="h-60 w-full border-b border-slate-200 dark:border-slate-800 pb-10 pt-2">
+                                <ResponsiveContainer width="100%" height={200}>
+                                    <LineChart
+                                        data={charts.daily_trends}
+                                        margin={{ top: 5, right: 20, bottom: 34, left: 8 }}
+                                    >
+                                        <XAxis
+                                            dataKey="date"
+                                            ticks={xAxisTicks}
+                                            tickLine={false}
+                                            axisLine={false}
+                                            tickMargin={8}
+                                            tick={{ fontSize: 10, fill: "#64748b" }}
+                                            className="dark:text-slate-400"
+                                        />
+                                        <YAxis
+                                            tickLine={false}
+                                            axisLine={false}
+                                            tickFormatter={(value: number) => value.toLocaleString()}
+                                            tick={{ fontSize: 10, fill: "#64748b" }}
+                                            width={32}
+                                            className="dark:text-slate-400"
+                                        />
+                                        <Tooltip
+                                            content={({ active, payload }) => {
+                                                if (!active || !payload || payload.length === 0) return null;
+                                                const data = payload[0].payload as unknown as DailyTrend;
+                                                return (
+                                                    <div className="rounded-lg bg-slate-900/95 text-white p-2 text-[10px] shadow-lg whitespace-nowrap dark:bg-slate-800">
+                                                        <span className="font-semibold text-slate-200 block">
+                                                            {data.date}
+                                                        </span>
+                                                        <span>Input: {data.input_tokens.toLocaleString()}</span>
+                                                        <span>Output: {data.output_tokens.toLocaleString()}</span>
+                                                        <span className="font-bold text-blue-300 block">
+                                                            Total: {data.total_tokens.toLocaleString()}
+                                                        </span>
+                                                        <span className="text-slate-400">
+                                                            {data.request_count} request
+                                                        </span>
+                                                    </div>
+                                                );
+                                            }}
+                                            cursor={{ strokeDasharray: "3 3" }}
+                                        />
+                                        {chartType !== "output" && (
+                                            <Line
+                                                type="monotone"
+                                                dataKey="input_tokens"
+                                                stroke="#3b82f6"
+                                                strokeWidth={2}
+                                                dot={{
+                                                    fill: "#3b82f6",
+                                                    stroke: "#ffffff",
+                                                    strokeWidth: 2,
+                                                }}
+                                                activeDot={{
+                                                    r: 6,
+                                                    fill: "#3b82f6",
+                                                    stroke: "#ffffff",
+                                                    strokeWidth: 2,
+                                                }}
+                                            />
+                                        )}
+                                        {chartType !== "input" && (
+                                            <Line
+                                                type="monotone"
+                                                dataKey="output_tokens"
+                                                stroke="#a855f7"
+                                                strokeWidth={2}
+                                                dot={{
+                                                    fill: "#a855f7",
+                                                    stroke: "#ffffff",
+                                                    strokeWidth: 2,
+                                                }}
+                                                activeDot={{
+                                                    r: 6,
+                                                    fill: "#a855f7",
+                                                    stroke: "#ffffff",
+                                                    strokeWidth: 2,
+                                                }}
+                                            />
+                                        )}
+                                    </LineChart>
+                                </ResponsiveContainer>
                             </div>
 
                             {/* Legend */}
@@ -399,6 +498,10 @@ export default function MonitoringPage() {
                                     <span>Output Tokens</span>
                                 </div>
                             </div>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-xs text-center">
+                            Tidak ada data grafik pada periode ini.
                         </div>
                     )}
                 </GlassCard>
@@ -597,9 +700,7 @@ export default function MonitoringPage() {
                             <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold text-[11px]">
                                 <th className="pb-3 pr-4">Waktu</th>
                                 <th className="pb-3 pr-4">Pengguna</th>
-                                <th className="pb-3 pr-4">Endpoint</th>
                                 <th className="pb-3 pr-4">Kueri / Pertanyaan</th>
-                                <th className="pb-3 pr-4">Tokens</th>
                                 <th className="pb-3 pr-4">Waktu Respons</th>
                                 <th className="pb-3 text-right">Status</th>
                             </tr>
@@ -607,13 +708,13 @@ export default function MonitoringPage() {
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono text-[11px]">
                             {loadingLogs ? (
                                 <tr>
-                                    <td colSpan={7} className="py-6 text-center text-slate-400 font-sans">
+                                    <td colSpan={5} className="py-6 text-center text-slate-400 font-sans">
                                         Memuat riwayat log...
                                     </td>
                                 </tr>
                             ) : logs.length === 0 ? (
                                 <tr>
-                                    <td colSpan={7} className="py-8 text-center text-slate-400 font-sans">
+                                    <td colSpan={5} className="py-8 text-center text-slate-400 font-sans">
                                         Belum ada catatan aktivitas query.
                                     </td>
                                 </tr>
@@ -630,20 +731,8 @@ export default function MonitoringPage() {
                                             <td className="py-2.5 pr-4 font-sans font-medium text-slate-800 dark:text-slate-200">
                                                 {log.user_username || log.user_email || "Anonymous"}
                                             </td>
-                                            <td className="py-2.5 pr-4 text-slate-500 dark:text-slate-400">
-                                                {log.endpoint}
-                                            </td>
                                             <td className="py-2.5 pr-4 font-sans text-slate-700 dark:text-slate-300 max-w-xs truncate">
                                                 {log.query_title || log.query_text || log.error_message || "-"}
-                                            </td>
-                                            <td className="py-2.5 pr-4 whitespace-nowrap">
-                                                <span className="text-blue-600 dark:text-blue-400 font-medium">
-                                                    {log.input_tokens} in
-                                                </span>{" "}
-                                                •{" "}
-                                                <span className="text-purple-600 dark:text-purple-400 font-medium">
-                                                    {log.output_tokens} out
-                                                </span>
                                             </td>
                                             <td className="py-2.5 pr-4 text-slate-500 dark:text-slate-400 whitespace-nowrap">
                                                 {log.response_time_ms ? `${log.response_time_ms} ms` : "-"}
