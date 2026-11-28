@@ -6,14 +6,17 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 
 import { api } from "@/lib/api";
-import { setUser, type AuthUser } from "@/lib/auth";
+import { type AuthUser } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { GlassButton } from "@/components/ui/GlassButton";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { GlassInput } from "@/components/ui/GlassInput";
 
 interface RegisterResponse {
-    user: AuthUser;
+    email: string;
+    requires_verification?: boolean;
+    message?: string;
+    user?: AuthUser;
 }
 
 type FieldName = "username" | "email" | "password" | "confirmPassword";
@@ -161,9 +164,8 @@ export default function RegisterPage() {
                 password,
                 password_confirm: confirmPassword,
             });
-            setUser(data.user);
-            router.replace("/");
-            router.refresh();
+            const targetEmail = data?.email || email.trim();
+            router.push(`/verify-otp?email=${encodeURIComponent(targetEmail)}`);
         } catch (err) {
             setError(
                 err instanceof Error
@@ -482,6 +484,16 @@ export default function RegisterPage() {
                             <div className="space-y-1">
                                 <p className="font-semibold">Ada masalah pada formulir</p>
                                 <p className="leading-tight">{summaryMessage}</p>
+                                {summaryMessage.toLowerCase().includes("belum diverifikasi") && (
+                                    <div className="pt-1">
+                                        <Link
+                                            href={`/verify-otp?email=${encodeURIComponent(email.trim())}`}
+                                            className="font-semibold text-blue-700 underline hover:text-blue-900"
+                                        >
+                                            Verifikasi kode OTP sekarang &rarr;
+                                        </Link>
+                                    </div>
+                                )}
                                 {hasFieldErrors && (
                                     <ul className="ml-4 list-disc space-y-0.5">
                                         {(

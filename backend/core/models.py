@@ -284,3 +284,33 @@ class IngestLog(models.Model):
 
     def __str__(self):
         return f"IngestLog {self.id} - {self.step}"
+
+
+class EmailVerificationCode(models.Model):
+    """Kode verifikasi OTP untuk email registrasi (tabel `email_verification_codes`)."""
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="verification_codes",
+        db_column="user_id",
+    )
+    email = models.EmailField()
+    code_hash = models.CharField(max_length=255)
+    expires_at = models.DateTimeField()
+    attempts = models.PositiveSmallIntegerField(default=0)
+    consumed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "email_verification_codes"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["email", "created_at"]),
+            models.Index(fields=["user", "consumed_at"]),
+        ]
+
+    def __str__(self):
+        return f"OTP for {self.email} ({self.created_at})"
+

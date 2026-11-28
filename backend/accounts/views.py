@@ -18,9 +18,12 @@ from .serializers import (
     ChangePasswordSerializer,
     LoginSerializer,
     RegisterSerializer,
+    ResendOtpSerializer,
     SessionSerializer,
     UserSerializer,
+    VerifyEmailSerializer,
 )
+from .services import send_verification_otp
 from .session_manager import (
     create_session,
     get_user_sessions,
@@ -58,7 +61,7 @@ def _delete_session_cookie(response: Response) -> None:
 
 
 class RegisterView(APIView):
-    """POST /api/auth/register/ — buat akun baru, set session cookie."""
+    """POST /api/auth/register/ — buat akun baru (inaktif), kirim kode OTP ke email."""
 
     authentication_classes = []
     permission_classes = [AllowAny]
@@ -69,18 +72,66 @@ class RegisterView(APIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
 
-        session = create_session(user.id, request=request)
-
-        response = Response(
-            {"user": UserSerializer(user).data},
-            status=status.HTTP_201_CREATED,
-        )
-        _set_session_cookie(response, session)
-
         # Set CSRF token
         get_token(request)
 
+        return Response(
+            {
+                "email": user.email,
+                "requires_verification": True,
+                "message": "Pendaftaran berhasil. Silakan periksa email Anda untuk kode verifikasi (OTP).",
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class VerifyEmailView(APIView):
+    """POST /api/auth/verify-email/ — verifikasi kode OTP, aktifkan akun, set session cookie."""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_scope = "otp"
+
+    def post(self, request):
+        serializer = VerifyEmailSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data["user"]
+
+        session = create_session(user.id, request=request)
+
+        response = Response(
+            {
+                "user": UserSerializer(user).data,
+                "message": "Email berhasil diverifikasi.",
+            },
+            status=status.HTTP_200_OK,
+        )
+        _set_session_cookie(response, session)
+        get_token(request)
+
         return response
+
+
+class ResendOtpView(APIView):
+    """POST /api/auth/resend-otp/ — kirim ulang kode OTP ke email."""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_scope = "otp"
+
+    def post(self, request):
+        serializer = ResendOtpSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data.get("user")
+
+        if user:
+            send_verification_otp(user)
+
+        get_token(request)
+        return Response(
+            {"message": "Jika email terdaftar, kode verifikasi baru telah dikirim ke email Anda."},
+            status=status.HTTP_200_OK,
+        )
 
 
 class LoginView(APIView):

@@ -1,0 +1,12 @@
+Halo {{ username }},
+
+Terima kasih telah mendaftar di Lumina. Gunakan kode verifikasi (OTP) berikut untuk menyelesaikan pendaftaran akun Anda:
+
+{{ otp_code }}
+
+Kode ini berlaku selama {{ valid_minutes }} menit. Jangan berikan kode ini kepada siapa pun demi keamanan akun Anda.
+
+Jika Anda tidak merasa mendaftar di Lumina, silakan abaikan email ini.
+
+Salam,
+Tim Lumina

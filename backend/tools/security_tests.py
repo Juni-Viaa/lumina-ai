@@ -44,7 +44,8 @@ class SecurityTester:
             # Extract session cookie
             cookies = response.cookies.get_dict()
             self.session_cookie = cookies.get("lumina_session")
-            print(f"✅ Created test user: {self.test_user['user']['email']}")
+            email = self.test_user.get("email") or self.test_user.get("user", {}).get("email")
+            print(f"✅ Created test user: {email}")
             return True
         else:
             print(f"❌ Failed to create test user: {response.status_code}")

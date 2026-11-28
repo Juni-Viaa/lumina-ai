@@ -26,12 +26,15 @@ def client():
 
 @pytest.fixture
 def create_user(db):
-    """Create test user."""
+    """Create test user (aktif dan terverifikasi)."""
     user = User.objects.create_user(
         email="test@example.com",
         username="testuser",
         password="testpass123",
+        is_active=True,
     )
+    user.email_verified_at = timezone.now()
+    user.save(update_fields=["email_verified_at"])
     return user
 
 
@@ -48,8 +51,9 @@ def active_session(create_user):
 class TestCookieAuthentication:
     """Test suite untuk HttpOnly cookie authentication."""
 
-    def test_register_sets_cookie(self, client, db):
-        """Test register endpoint set HttpOnly cookie."""
+    def test_register_requires_otp_verification(self, client, db):
+        """Test register endpoint creates inactive user and sends OTP without cookie."""
+        from django.core import mail
         response = client.post(
             "/api/auth/register/",
             json.dumps({
@@ -63,10 +67,16 @@ class TestCookieAuthentication:
         )
 
         assert response.status_code == 201
-        assert "lumina_session" in response.cookies
-        cookie = response.cookies["lumina_session"]
-        assert cookie["httponly"] == True
-        assert cookie["samesite"] == "Lax"
+        assert "lumina_session" not in response.cookies
+        data = response.json()
+        assert data["requires_verification"] is True
+        assert data["email"] == "newuser@example.com"
+
+        user = User.objects.get(email="newuser@example.com")
+        assert user.is_active is False
+        assert user.email_verified_at is None
+        assert len(mail.outbox) == 1
+        assert "Kode Verifikasi" in mail.outbox[0].subject
 
     def test_login_sets_cookie(self, client, create_user, db):
         """Test login endpoint set HttpOnly cookie."""
@@ -94,11 +104,8 @@ class TestCookieAuthentication:
         self, client, create_user, active_session, db
     ):
         """Test protected endpoint accept valid session cookie."""
-        session_key = str(active_session.session_key)
-        response = client.get(
-            "/api/auth/me/",
-            cookies={"lumina_session": session_key},
-        )
+        client.cookies["lumina_session"] = str(active_session.session_key)
+        response = client.get("/api/auth/me/")
 
         assert response.status_code == 200
         data = response.json()
@@ -107,11 +114,8 @@ class TestCookieAuthentication:
 
     def test_logout_deletes_cookie(self, client, create_user, active_session, db):
         """Test logout endpoint delete session cookie."""
-        session_key = str(active_session.session_key)
-        response = client.post(
-            "/api/auth/logout/",
-            cookies={"lumina_session": session_key},
-        )
+        client.cookies["lumina_session"] = str(active_session.session_key)
+        response = client.post("/api/auth/logout/")
 
         assert response.status_code == 200
         assert "lumina_session" in response.cookies
@@ -125,13 +129,137 @@ class TestCookieAuthentication:
             expires_at=timezone.now() - timedelta(days=1),
         )
         
-        session_key = str(expired_session.session_key)
-        response = client.get(
-            "/api/auth/me/",
-            cookies={"lumina_session": session_key},
-        )
+        client.cookies["lumina_session"] = str(expired_session.session_key)
+        response = client.get("/api/auth/me/")
 
         assert response.status_code == 401
+
+
+class TestEmailOtpVerification:
+    """Test suite untuk verifikasi OTP email."""
+
+    def test_verify_email_success(self, client, db):
+        """Verifikasi dengan kode OTP yang benar mengaktifkan akun dan memberi cookie."""
+        from core.models import EmailVerificationCode
+        from django.contrib.auth.hashers import make_password
+
+        user = User.objects.create_user(
+            email="verifyme@example.com",
+            username="verifyuser",
+            password="testpass123",
+            is_active=False,
+        )
+        EmailVerificationCode.objects.create(
+            user=user,
+            email=user.email,
+            code_hash=make_password("123456"),
+            expires_at=timezone.now() + timedelta(minutes=5),
+        )
+
+        response = client.post(
+            "/api/auth/verify-email/",
+            json.dumps({"email": "verifyme@example.com", "otp": "123456"}),
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        assert "lumina_session" in response.cookies
+        user.refresh_from_db()
+        assert user.is_active is True
+        assert user.email_verified_at is not None
+
+    def test_verify_email_wrong_code(self, client, db):
+        """Verifikasi dengan kode salah mengembalikan 400."""
+        from core.models import EmailVerificationCode
+        from django.contrib.auth.hashers import make_password
+
+        user = User.objects.create_user(
+            email="wrongcode@example.com",
+            username="wronguser",
+            password="testpass123",
+            is_active=False,
+        )
+        EmailVerificationCode.objects.create(
+            user=user,
+            email=user.email,
+            code_hash=make_password("123456"),
+            expires_at=timezone.now() + timedelta(minutes=5),
+        )
+
+        response = client.post(
+            "/api/auth/verify-email/",
+            json.dumps({"email": "wrongcode@example.com", "otp": "999999"}),
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+        assert "otp" in response.json()
+
+    def test_verify_email_expired_code(self, client, db):
+        """Verifikasi dengan kode kadaluarsa ditolak."""
+        from core.models import EmailVerificationCode
+        from django.contrib.auth.hashers import make_password
+
+        user = User.objects.create_user(
+            email="expired@example.com",
+            username="expireduser",
+            password="testpass123",
+            is_active=False,
+        )
+        EmailVerificationCode.objects.create(
+            user=user,
+            email=user.email,
+            code_hash=make_password("123456"),
+            expires_at=timezone.now() - timedelta(minutes=1),
+        )
+
+        response = client.post(
+            "/api/auth/verify-email/",
+            json.dumps({"email": "expired@example.com", "otp": "123456"}),
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+        assert "kadaluarsa" in response.json()["otp"][0].lower()
+
+    def test_unverified_user_cannot_login(self, client, db):
+        """User yang belum verifikasi OTP tidak bisa login."""
+        User.objects.create_user(
+            email="unverified@example.com",
+            username="unverifieduser",
+            password="testpass123",
+            is_active=False,
+        )
+        response = client.post(
+            "/api/auth/login/",
+            json.dumps({"email": "unverified@example.com", "password": "testpass123"}),
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+        assert "belum diverifikasi" in str(response.json()).lower()
+
+    def test_resend_otp_respects_cooldown(self, client, db):
+        """Resend OTP menghormati cooldown 60 detik."""
+        from core.models import EmailVerificationCode
+        from django.contrib.auth.hashers import make_password
+
+        user = User.objects.create_user(
+            email="resend@example.com",
+            username="resenduser",
+            password="testpass123",
+            is_active=False,
+        )
+        EmailVerificationCode.objects.create(
+            user=user,
+            email=user.email,
+            code_hash=make_password("123456"),
+            expires_at=timezone.now() + timedelta(minutes=5),
+        )
+
+        response = client.post(
+            "/api/auth/resend-otp/",
+            json.dumps({"email": "resend@example.com"}),
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+        assert "tunggu" in str(response.json()).lower()
 
 
 class TestCSRFProtection:
@@ -159,7 +287,7 @@ class TestCSRFProtection:
         # CSRF check may or may not reject depending on settings
         # This test documents current behavior
 
-    def test_post_with_valid_csrf_token(self, client, db):
+    def test_post_with_valid_csrf_token(self, client, create_user, db):
         """Test POST request with valid CSRF token accepted."""
         # Get CSRF token first
         response = client.get("/api/auth/csrf/")
@@ -233,13 +361,11 @@ class TestSessionManagement:
             expires_at=timezone.now() + timedelta(days=7),
         )
 
-        # Validate expired
-        session, is_valid = Session.objects.get(session_key=expired.session_key).validate_session()
-        assert is_valid == False
+        expired_obj = Session.objects.get(session_key=expired.session_key)
+        assert expired_obj.is_expired is True
 
-        # Validate active
-        session, is_valid = Session.objects.get(session_key=active.session_key).validate_session()
-        assert is_valid == True
+        active_obj = Session.objects.get(session_key=active.session_key)
+        assert active_obj.is_expired is False
 
 
 class TestCookieSettings:
@@ -301,11 +427,8 @@ class TestSecurity:
 
     def test_no_sensitive_data_in_response(self, client, create_user, active_session, db):
         """Test sensitive data not exposed in API responses."""
-        session_key = str(active_session.session_key)
-        response = client.get(
-            "/api/auth/me/",
-            cookies={"lumina_session": session_key},
-        )
+        client.cookies["lumina_session"] = str(active_session.session_key)
+        response = client.get("/api/auth/me/")
 
         assert response.status_code == 200
         data = response.json()
@@ -315,7 +438,7 @@ class TestSecurity:
         assert "password_hash" not in data
         assert "password_reset_token" not in data
 
-    def test_session_key_is_uuid(self, db):
+    def test_session_key_is_uuid(self, create_user, db):
         """Test session key is UUID, not sequential ID."""
         session = Session.objects.create(
             user=create_user,

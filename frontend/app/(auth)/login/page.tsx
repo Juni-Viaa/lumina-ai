@@ -407,6 +407,16 @@ export default function LoginPage() {
                             <div className="space-y-1">
                                 <p className="font-semibold">Ada masalah pada formulir</p>
                                 <p className="leading-tight">{summaryMessage}</p>
+                                {error && error.toLowerCase().includes("belum diverifikasi") && (
+                                    <div className="pt-1">
+                                        <Link
+                                            href={`/verify-otp?email=${encodeURIComponent(email.trim())}`}
+                                            className="font-semibold text-blue-700 underline hover:text-blue-900"
+                                        >
+                                            Verifikasi email sekarang &rarr;
+                                        </Link>
+                                    </div>
+                                )}
                                 {hasFieldErrors && (
                                     <ul className="ml-4 list-disc space-y-0.5">
                                         {fieldErrors.email && (
